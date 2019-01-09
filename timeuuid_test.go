@@ -21,7 +21,6 @@ package timeuuid
 
 import (
 	"testing"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +29,6 @@ func TestSuit(t *testing.T) {
 	println("uuid tests")
 
 	testRandomlyGenerated(t)
-
 	testNamebased(t)
 
 }
@@ -47,7 +45,9 @@ func testRandomlyGenerated(t *testing.T) {
 	assert.Equal(t, RFC4122, uuid.Variant())
 	assert.Equal(t, RandomlyGeneratedUUID, uuid.Version())
 
-	fmt.Print(uuid)
+	assertMarshal(t, uuid)
+	assertSortableMarshal(t, uuid)
+	assertSortableFlip(t, uuid)
 
 }
 
@@ -66,8 +66,16 @@ func testNamebased(t *testing.T) {
 
 	assert.Equal(t, "534b44a1-9bf1-3d20-b71e-cc4eb77c572f", uuid.String())
 
+	assertMarshal(t, uuid)
+	assertSortableMarshal(t, uuid)
+	assertSortableFlip(t, uuid)
+
+}
+
+func assertMarshal(t *testing.T, uuid UUID) {
+
 	var actual UUID
-	err = actual.UnmarshalBinary(uuid.MarshalBinary())
+	err := actual.UnmarshalBinary(uuid.MarshalBinary())
 
 	if err != nil {
 		t.Fatal("fail to UnmarshalBinary ", err)
@@ -75,5 +83,34 @@ func testNamebased(t *testing.T) {
 
 	assert.Equal(t, uuid.mostSigBits, actual.mostSigBits)
 	assert.Equal(t, uuid.leastSigBits, actual.leastSigBits)
+
+
+}
+
+func assertSortableMarshal(t *testing.T, uuid UUID) {
+
+	var actual UUID
+	err := actual.UnmarshalSortableBinary(uuid.MarshalSortableBinary())
+
+	if err != nil {
+		t.Fatal("fail to UnmarshalSortableBinary ", err)
+	}
+
+	assert.Equal(t, uuid.mostSigBits, actual.mostSigBits)
+	assert.Equal(t, uuid.leastSigBits, actual.leastSigBits)
+
+
+}
+
+func assertSortableFlip(t *testing.T, uuid UUID) {
+
+	data := uuid.MarshalBinary()
+	srt1, _ := FlipToSortable(data)
+	srt2 := uuid.MarshalSortableBinary()
+
+	assert.Equal(t, srt1, srt2)
+
+	actual, _ := FlipFromSortable(srt1)
+	assert.Equal(t, data, actual)
 
 }

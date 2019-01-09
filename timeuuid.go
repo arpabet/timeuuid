@@ -51,15 +51,8 @@ const (
 
 var (
 
-	ERROR_WRONG_LENGTH = errors.New("data must be 16 bytes in length")
+	ErrorWrongLen = errors.New("data must be 16 bytes in length")
 
-	VERSION_DESC = []string {
-		"WRONG UUID",
-		"Time-based UUID",
-		"DCE security UUID",
-		"Name-based UUID",
-		"Randomly generated UUID",
-	}
 )
 
 type Version int
@@ -75,8 +68,8 @@ const (
 
 func (this*UUID) UnmarshalBinary(data []byte) error {
 
-	if len(data) != 16 {
-		return ERROR_WRONG_LENGTH
+	if len(data) < 16 {
+		return ErrorWrongLen
 	}
 
 	this.mostSigBits = int64(binary.BigEndian.Uint64(data))
@@ -85,13 +78,98 @@ func (this*UUID) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func (this*UUID) UnmarshalSortableBinary(data []byte) error {
+
+	if len(data) < 16 {
+		return ErrorWrongLen
+	}
+
+	timeHiAndVersion := uint64(binary.BigEndian.Uint16(data))
+	timeMid := uint64(binary.BigEndian.Uint16(data[2:]))
+	timeLow := uint64(binary.BigEndian.Uint32(data[4:]))
+
+	msb := (timeLow << 32) | (timeMid << 16) | timeHiAndVersion;
+
+	this.mostSigBits = int64(msb)
+	this.leastSigBits = int64(binary.BigEndian.Uint64(data[8:]))
+
+	return nil
+}
+
 func (this*UUID) MarshalBinary() []byte {
 
-	b := make([]byte, 16)
-	binary.BigEndian.PutUint64(b, uint64(this.mostSigBits))
-	binary.BigEndian.PutUint64(b[8:], uint64(this.leastSigBits))
+	dst := make([]byte, 16)
+	this.MarshalBinaryTo(dst)
+	return dst
+}
 
-	return b
+func (this*UUID) MarshalBinaryTo(dst []byte) error {
+
+	if len(dst) < 16 {
+		return ErrorWrongLen
+	}
+
+	binary.BigEndian.PutUint64(dst, uint64(this.mostSigBits))
+	binary.BigEndian.PutUint64(dst[8:], uint64(this.leastSigBits))
+
+	return nil
+}
+
+func (this*UUID) MarshalSortableBinary() []byte {
+	dst := make([]byte, 16)
+	this.MarshalSortableBinaryTo(dst)
+	return dst
+}
+
+func (this*UUID) MarshalSortableBinaryTo(dst []byte) error {
+
+	if len(dst) < 16 {
+		return ErrorWrongLen
+	}
+
+	timeHiAndVersion := uint16(this.mostSigBits)
+	timeMid := uint16(this.mostSigBits >> 16)
+	timeLow := uint32(this.mostSigBits >> 32)
+
+	binary.BigEndian.PutUint16(dst, timeHiAndVersion)
+	binary.BigEndian.PutUint16(dst[2:], timeMid)
+	binary.BigEndian.PutUint32(dst[4:], timeLow)
+	binary.BigEndian.PutUint64(dst[8:], uint64(this.leastSigBits))
+
+	return nil
+}
+
+func FlipToSortable(uuid []byte) ([]byte, error) {
+
+	if len(uuid) < 16 {
+		return nil, ErrorWrongLen
+	}
+
+	srt := make([]byte, 16)
+
+	copy(srt[0:2], uuid[6:8])
+	copy(srt[2:4], uuid[4:6])
+	copy(srt[4:8], uuid[0:4])
+	copy(srt[8:16], uuid[8:16])
+
+	return srt, nil
+
+}
+
+func FlipFromSortable(srt []byte) ([]byte, error) {
+
+	if len(srt) < 16 {
+		return nil, ErrorWrongLen
+	}
+
+	uuid := make([]byte, 16)
+
+	copy(uuid[0:4], srt[4:8])
+	copy(uuid[4:6], srt[2:4])
+	copy(uuid[6:8], srt[0:2])
+	copy(uuid[8:16], srt[8:16])
+
+	return uuid, nil
 }
 
 func RandomUUID() (uuid UUID, err error) {
