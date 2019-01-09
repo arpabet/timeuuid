@@ -29,21 +29,38 @@ func TestSuit(t *testing.T) {
 
 	println("uuid tests")
 
+	testRandomlyGenerated(t)
+
+	testNamebased(t)
+
+}
+
+
+func testRandomlyGenerated(t *testing.T) {
+
 	uuid, err := RandomUUID()
 
 	if err != nil {
 		t.Fatal("fail to create random uuid ", err)
 	}
 
+	assert.Equal(t, RFC4122, uuid.Variant())
+	assert.Equal(t, RandomlyGeneratedUUID, uuid.Version())
+
 	fmt.Print(uuid)
 
+}
 
-	uuid, err = NameUUIDFromBytes([]byte("alex"))
+func testNamebased(t *testing.T) {
+
+	uuid, err := NameUUIDFromBytes([]byte("alex"))
 
 	if err != nil {
 		t.Fatal("fail to create random uuid ", err)
 	}
 
+	assert.Equal(t, RFC4122, uuid.Variant())
+	assert.Equal(t, NamebasedUUID, uuid.Version())
 	assert.Equal(t, int64(6001966389298019616), uuid.mostSigBits)
 	assert.Equal(t, int64(-5251535477009524945), uuid.leastSigBits)
 

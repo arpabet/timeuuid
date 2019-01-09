@@ -62,6 +62,17 @@ var (
 	}
 )
 
+type Version int
+
+// Constants returned by Version.
+const (
+	BadVersion   = Version(iota)
+	TimebasedUUID
+	DCESecurityUUID
+	NamebasedUUID
+	RandomlyGeneratedUUID
+)
+
 func (this*UUID) UnmarshalBinary(data []byte) error {
 
 	if len(data) != 16 {
@@ -112,17 +123,16 @@ func NameUUIDFromBytes(name []byte) (uuid UUID, err error) {
 
 }
 
-func (this*UUID) Version() int {
-	// Version is bits masked by 0x000000000000F000 in MS long
-	return int((this.mostSigBits >> 12) & 0x0f);
-}
+func (this*UUID) Version() Version {
 
-func (this*UUID) VersionDesc() string {
-	ver := this.Version()
-	if ver >= len(VERSION_DESC) || ver < 0 {
-		ver = 0
+	// Version is bits masked by 0x000000000000F000 in MS long
+	version := int((this.mostSigBits >> 12) & 0x0f);
+
+	if version > 4 {
+		return BadVersion
 	}
-	return VERSION_DESC[ver]
+
+	return Version(version)
 }
 
 func (this*UUID) Variant() Variant {
