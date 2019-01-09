@@ -24,6 +24,7 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"encoding/hex"
+	"crypto/sha1"
 )
 
 type UUID struct {
@@ -62,9 +63,15 @@ const (
 	BadVersion   = Version(iota)
 	TimebasedUUID
 	DCESecurityUUID
-	NamebasedUUID
+	MD5NamebasedUUID
 	RandomlyGeneratedUUID
+	SHA1NamebasedUUID
+	UnknownVersion
 )
+
+/**
+     Convert serialized 16 bytes to UUID
+ */
 
 func (this*UUID) UnmarshalBinary(data []byte) error {
 
@@ -78,17 +85,23 @@ func (this*UUID) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+/**
+     Convert sortable representation of serialized 16 bytes to UUID
+
+     Sortable representation flips timestamp blocks to make TimeUUID sortable as byte array
+ */
+
 func (this*UUID) UnmarshalSortableBinary(data []byte) error {
 
 	if len(data) < 16 {
 		return ErrorWrongLen
 	}
 
-	timeHiAndVersion := uint64(binary.BigEndian.Uint16(data))
+	timeHighAndVersion := uint64(binary.BigEndian.Uint16(data))
 	timeMid := uint64(binary.BigEndian.Uint16(data[2:]))
 	timeLow := uint64(binary.BigEndian.Uint32(data[4:]))
 
-	msb := (timeLow << 32) | (timeMid << 16) | timeHiAndVersion;
+	msb := (timeLow << 32) | (timeMid << 16) | timeHighAndVersion;
 
 	this.mostSigBits = int64(msb)
 	this.leastSigBits = int64(binary.BigEndian.Uint64(data[8:]))
@@ -96,12 +109,20 @@ func (this*UUID) UnmarshalSortableBinary(data []byte) error {
 	return nil
 }
 
+/**
+     Stores UUID in to 16 bytes
+ */
+
 func (this*UUID) MarshalBinary() []byte {
 
 	dst := make([]byte, 16)
 	this.MarshalBinaryTo(dst)
 	return dst
 }
+
+/**
+     Stores UUID in to slice
+ */
 
 func (this*UUID) MarshalBinaryTo(dst []byte) error {
 
@@ -115,11 +136,19 @@ func (this*UUID) MarshalBinaryTo(dst []byte) error {
 	return nil
 }
 
+/**
+     Stores UUID in to 16 bytes by flipping timestamp parts to make byte array sortable
+ */
+
 func (this*UUID) MarshalSortableBinary() []byte {
 	dst := make([]byte, 16)
 	this.MarshalSortableBinaryTo(dst)
 	return dst
 }
+
+/**
+     Stores UUID in to slice by flipping timestamp parts to make byte array sortable
+ */
 
 func (this*UUID) MarshalSortableBinaryTo(dst []byte) error {
 
@@ -127,11 +156,11 @@ func (this*UUID) MarshalSortableBinaryTo(dst []byte) error {
 		return ErrorWrongLen
 	}
 
-	timeHiAndVersion := uint16(this.mostSigBits)
+	timeHighAndVersion := uint16(this.mostSigBits)
 	timeMid := uint16(this.mostSigBits >> 16)
 	timeLow := uint32(this.mostSigBits >> 32)
 
-	binary.BigEndian.PutUint16(dst, timeHiAndVersion)
+	binary.BigEndian.PutUint16(dst, timeHighAndVersion)
 	binary.BigEndian.PutUint16(dst[2:], timeMid)
 	binary.BigEndian.PutUint32(dst[4:], timeLow)
 	binary.BigEndian.PutUint64(dst[8:], uint64(this.leastSigBits))
@@ -139,7 +168,11 @@ func (this*UUID) MarshalSortableBinaryTo(dst []byte) error {
 	return nil
 }
 
-func FlipToSortable(uuid []byte) ([]byte, error) {
+/**
+     Flips timestamp parts to make byte array sortable
+ */
+
+func ConvertBinaryToSortableBinary(uuid []byte) ([]byte, error) {
 
 	if len(uuid) < 16 {
 		return nil, ErrorWrongLen
@@ -156,7 +189,11 @@ func FlipToSortable(uuid []byte) ([]byte, error) {
 
 }
 
-func FlipFromSortable(srt []byte) ([]byte, error) {
+/**
+     Restores original uuid byte array from sortable one
+ */
+
+func ConvertSortableBinaryToBinary(srt []byte) ([]byte, error) {
 
 	if len(srt) < 16 {
 		return nil, ErrorWrongLen
@@ -171,6 +208,10 @@ func FlipFromSortable(srt []byte) ([]byte, error) {
 
 	return uuid, nil
 }
+
+/**
+    Generates random UUID by using pseudo-random cryptographic generator
+ */
 
 func RandomUUID() (uuid UUID, err error) {
 
@@ -187,7 +228,12 @@ func RandomUUID() (uuid UUID, err error) {
 
 }
 
-func NameUUIDFromBytes(name []byte) (uuid UUID, err error) {
+/**
+	Creates UUID based on MD5 digest of incoming byte array
+    Used for authentication purposes
+ */
+
+func MD5NameUUIDFromBytes(name []byte) (uuid UUID, err error) {
 
 	digest := md5.Sum(name)
 
@@ -201,17 +247,44 @@ func NameUUIDFromBytes(name []byte) (uuid UUID, err error) {
 
 }
 
+/**
+	Creates UUID based on SHA1 digest of incoming byte array
+    Used for authentication purposes
+ */
+
+func SHA1NameUUIDFromBytes(name []byte) (uuid UUID, err error) {
+
+	digest := sha1.Sum(name)
+
+	digest[6] &= 0x0f;  /* clear version        */
+	digest[6] |= 0x50;  /* set to version 5     */
+	digest[8] &= 0x3f;  /* clear variant        */
+	digest[8] |= 0x80;  /* set to IETF variant  */
+
+	err = uuid.UnmarshalBinary(digest[:])
+	return uuid, err
+
+}
+
+/**
+    Gets version of the UUID
+ */
+
 func (this*UUID) Version() Version {
 
 	// Version is bits masked by 0x000000000000F000 in MS long
 	version := int((this.mostSigBits >> 12) & 0x0f);
 
-	if version > 4 {
-		return BadVersion
+	if version >= int(UnknownVersion) {
+		return UnknownVersion
 	}
 
 	return Version(version)
 }
+
+/**
+	Gets variant of the UUID
+ */
 
 func (this*UUID) Variant() Variant {
 
@@ -230,32 +303,78 @@ func (this*UUID) Variant() Variant {
 }
 
 /**
-    timestamp is 60bit int64
-    it is measured in 100-nanosecond units since midnight, October 15, 1582 UTC.
+    Gets timestamp as 60bit int64 from Time-based UUID
 
-    only for version 1 or 2
+    It is measured in 100-nanosecond units since midnight, October 15, 1582 UTC.
+
+    valid only for version 1 or 2
  */
 
-func (this*UUID) TimestampNano100() int64 {
+func (this*UUID) Time100Nanos() int64 {
 
-	timeHi := this.mostSigBits & int64(0x0FFF)
+	timeHigh := this.mostSigBits & int64(0x0FFF)
 	timeMid := (this.mostSigBits >> 16) & int64(0xFFFF)
 	timeLow := (this.mostSigBits >> 32) & int64(0xFFFFFFFF)
 
-	return (timeHi << 48) | (timeMid << 32) | timeLow;
+	return (timeHigh << 48) | (timeMid << 32) | timeLow;
 }
+
+/**
+	Gets timestamp in milliseconds from Time-based UUID
+
+	It is measured in millisecond units in unix time since 1 Jan 1970
+ */
 
 func (this*UUID) TimestampMillis() int64 {
 
-	return (this.TimestampNano100() - NUM_100NS_SINCE_UUID_EPOCH) / NUM_100NS_IN_MILLISECOND
+	return (this.Time100Nanos() - NUM_100NS_SINCE_UUID_EPOCH) / NUM_100NS_IN_MILLISECOND
 
 }
+
+/**
+    Gets 14 bit clock sequence value from Time-based UUID
+ */
+
+func (this*UUID) ClockSequence() int {
+
+	variantAndSequence := int(this.leastSigBits >> 48);
+
+	return variantAndSequence & 0x3FFF;
+}
+
+/**
+    Gets node associated with Time-based UUID
+
+    48 bit node is intended to hold the IEEE 802 address of the machine that generated this UUID to guarantee spatial uniqueness.
+
+ */
+
+func (this*UUID) Node() int64 {
+
+	return this.leastSigBits & int64(0x0000FFFFFFFFFFFF);
+
+}
+
+/**
+	Converts UUID in to string
+
+	<time_low> "-" <time_mid> "-" <time_high_and_version> "-" <variant_and_sequence> "-" <node>
+
+	time_low               = 4*<hexOctet>
+    time_mid               = 2*<hexOctet>
+    time_high_and_version  = 2*<hexOctet>
+    variant_and_sequence   = 2*<hexOctet>
+    node                   = 6*<hexOctet>
+
+ */
 
 func (this*UUID) String() string {
 	dst := make([]byte, 32)
 	hex.Encode(dst, this.MarshalBinary())
 	return string(dst[0:8]) + "-" + string(dst[8:12]) + "-" + string(dst[12:16]) + "-" + string(dst[16:20]) + "-" + string(dst[20:32])
 }
+
+
 
 
 

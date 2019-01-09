@@ -53,14 +53,14 @@ func testRandomlyGenerated(t *testing.T) {
 
 func testNamebased(t *testing.T) {
 
-	uuid, err := NameUUIDFromBytes([]byte("alex"))
+	uuid, err := MD5NameUUIDFromBytes([]byte("alex"))
 
 	if err != nil {
 		t.Fatal("fail to create random uuid ", err)
 	}
 
 	assert.Equal(t, RFC4122, uuid.Variant())
-	assert.Equal(t, NamebasedUUID, uuid.Version())
+	assert.Equal(t, MD5NamebasedUUID, uuid.Version())
 	assert.Equal(t, int64(6001966389298019616), uuid.mostSigBits)
 	assert.Equal(t, int64(-5251535477009524945), uuid.leastSigBits)
 
@@ -105,12 +105,12 @@ func assertSortableMarshal(t *testing.T, uuid UUID) {
 func assertSortableFlip(t *testing.T, uuid UUID) {
 
 	data := uuid.MarshalBinary()
-	srt1, _ := FlipToSortable(data)
+	srt1, _ := ConvertBinaryToSortableBinary(data)
 	srt2 := uuid.MarshalSortableBinary()
 
 	assert.Equal(t, srt1, srt2)
 
-	actual, _ := FlipFromSortable(srt1)
+	actual, _ := ConvertSortableBinaryToBinary(srt1)
 	assert.Equal(t, data, actual)
 
 }
