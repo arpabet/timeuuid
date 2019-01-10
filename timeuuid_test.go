@@ -39,6 +39,26 @@ func TestSuit(t *testing.T) {
 	testRandomlyGenerated(t)
 	testNamebased(t)
 
+
+	uuid, err := NameUUIDFromBytes([]byte("content"), SHA1NamebasedUUID)
+
+	if err != nil {
+		t.Fatal("fail to create name uuid ", err)
+	}
+
+	assert.Equal(t, IETF, uuid.Variant())
+	assert.Equal(t, SHA1NamebasedUUID, uuid.Version())
+	assert.Equal(t, uint64(0x40f06fd77405247), uuid.mostSigBits)
+	assert.Equal(t, uint64(0x8d450774f5ba30c5), uuid.leastSigBits)
+
+	uuid.SetTimestampMillis(0)
+	assert.Equal(t, IETF, uuid.Variant())
+	assert.Equal(t, TimebasedUUID, uuid.Version())
+	assert.Equal(t, int64(0), uuid.TimestampMillis())
+
+	assert.Equal(t, uint64(0x138140001dd211b2), uuid.mostSigBits)
+	assert.Equal(t, uint64(0x8d450774f5ba30c5), uuid.leastSigBits)
+
 }
 
 func testTimebased(t *testing.T) {
@@ -179,7 +199,7 @@ func testNamebased(t *testing.T) {
 	assert.Equal(t, IETF, uuid.Variant())
 	assert.Equal(t, MD5NamebasedUUID, uuid.Version())
 
-	uuid, err := MD5NameUUIDFromBytes([]byte("alex"))
+	uuid, err := NameUUIDFromBytes([]byte("alex"), MD5NamebasedUUID)
 
 	if err != nil {
 		t.Fatal("fail to create random uuid ", err)

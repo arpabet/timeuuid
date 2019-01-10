@@ -57,6 +57,7 @@ const (
 	Num100NanosSinceUUIDEpoch = int64(0x01b21dd213814000)
 
 	VersionMask = uint64(0x000000000000F000)
+	TimebasedVersion = uint64(0x0000000000001000)
 
 	MinNode = int64(0)
 	MaxNode = int64(0x0000FFFFFFFFFFFF)
@@ -66,7 +67,7 @@ const (
 	MaxClockSequence = int(0x3FFF)
 	ClockSequenceClearMask = uint64(0xC000FFFFFFFFFFFF)
 
-	FlipSignedLeastBits = uint64(0x0080808080808080)
+	FlipSignedBits = uint64(0x0080808080808080)
 
 	CounterMask = uint64(0x3FFFFFFFFFFFFFFF)
 
@@ -173,7 +174,7 @@ func (this*UUID) UnmarshalSortableBinary(data []byte) error {
 	timeLow := uint64(binary.BigEndian.Uint32(data[4:]))
 
 	this.mostSigBits = (timeLow << 32) | (timeMid << 16) | timeHighAndVersion
-	this.leastSigBits = binary.BigEndian.Uint64(data[8:]) ^ FlipSignedLeastBits
+	this.leastSigBits = binary.BigEndian.Uint64(data[8:]) ^ FlipSignedBits
 
 	return nil
 }
@@ -232,7 +233,7 @@ func (this*UUID) MarshalSortableBinaryTo(dst []byte) error {
 	binary.BigEndian.PutUint16(dst, timeHighAndVersion)
 	binary.BigEndian.PutUint16(dst[2:], timeMid)
 	binary.BigEndian.PutUint32(dst[4:], timeLow)
-	binary.BigEndian.PutUint64(dst[8:], this.leastSigBits ^ FlipSignedLeastBits)
+	binary.BigEndian.PutUint64(dst[8:], this.leastSigBits ^FlipSignedBits)
 
 	return nil
 }
@@ -257,40 +258,49 @@ func RandomUUID() (uuid UUID, err error) {
 }
 
 /**
-	Creates UUID based on MD5 digest of incoming byte array
+	Creates UUID based on digest of incoming byte array
     Used for authentication purposes
  */
 
-func MD5NameUUIDFromBytes(name []byte) (uuid UUID, err error) {
-
-	digest := md5.Sum(name)
-
-	digest[6]  &= 0x0f;  /* clear version        */
-	digest[6]  |= 0x30;  /* set to version 3     */
-	digest[8]  &= 0x3f;  /* clear variant        */
-	digest[8]  |= 0x80;  /* set to IETF variant  */
-
-	err = uuid.UnmarshalBinary(digest[:])
+func NameUUIDFromBytes(name []byte, version Version) (uuid UUID, err error) {
+	err = uuid.SetName(name, version)
 	return uuid, err
-
 }
 
 /**
-	Creates UUID based on SHA1 digest of incoming byte array
+	Sets name digest of incoming byte array
     Used for authentication purposes
  */
 
-func SHA1NameUUIDFromBytes(name []byte) (uuid UUID, err error) {
+func (this*UUID) SetName(name []byte, version Version) error {
 
-	digest := sha1.Sum(name)
+	switch(version) {
 
-	digest[6] &= 0x0f;  /* clear version        */
-	digest[6] |= 0x50;  /* set to version 5     */
-	digest[8] &= 0x3f;  /* clear variant        */
-	digest[8] |= 0x80;  /* set to IETF variant  */
+	case MD5NamebasedUUID:
 
-	err = uuid.UnmarshalBinary(digest[:])
-	return uuid, err
+		digest := md5.Sum(name)
+
+		digest[6]  &= 0x0f;  /* clear version        */
+		digest[6]  |= 0x30;  /* set to version 3     */
+		digest[8]  &= 0x3f;  /* clear variant        */
+		digest[8]  |= 0x80;  /* set to IETF variant  */
+
+		return this.UnmarshalBinary(digest[:])
+
+	case SHA1NamebasedUUID:
+
+		digest := sha1.Sum(name)
+
+		digest[6] &= 0x0f;  /* clear version        */
+		digest[6] |= 0x50;  /* set to version 5     */
+		digest[8] &= 0x3f;  /* clear variant        */
+		digest[8] |= 0x80;  /* set to IETF variant  */
+
+		return this.UnmarshalBinary(digest[:])
+
+	default:
+		return errors.Errorf("unknown version: %q", version)
+	}
 
 }
 
@@ -380,8 +390,7 @@ func (this*UUID) SetTime100Nanos(time100Nanos int64) {
 
 func (this*UUID) SetTime100NanosUnsigned(time100Nanos uint64) {
 
-	bits := this.mostSigBits
-	bits &= VersionMask
+	bits := TimebasedVersion
 
 	// timeLow
 	bits |= (time100Nanos & 0xFFFFFFFF) << 32
@@ -457,9 +466,7 @@ func (this* UUID) SetClockSequence(clockSequence int) {
  */
 
 func (this*UUID) Node() int64 {
-
 	return int64(this.leastSigBits) & MaxNode;
-
 }
 
 /**
@@ -471,11 +478,8 @@ func (this*UUID) Node() int64 {
  */
 
 func (this*UUID) SetNode(node int64) {
-
 	sanitizedNode := uint64(node & MaxNode)
-
 	this.leastSigBits = (this.leastSigBits & NodeClearMask) | sanitizedNode
-
 }
 
 /**
@@ -487,7 +491,7 @@ func (this*UUID) SetNode(node int64) {
  */
 
 func (this* UUID) Counter() uint64 {
-	return (this.leastSigBits ^ FlipSignedLeastBits) & CounterMask
+	return (this.leastSigBits ^ FlipSignedBits) & CounterMask
 }
 
 /**
@@ -501,11 +505,8 @@ func (this* UUID) Counter() uint64 {
  */
 
 func (this* UUID) SetCounter(counter uint64) uint64 {
-
 	sanitizedCounter := counter & CounterMask
-
-	this.leastSigBits = (sanitizedCounter | IETFVariant) ^ FlipSignedLeastBits
-
+	this.leastSigBits = (sanitizedCounter | IETFVariant) ^ FlipSignedBits
 	return sanitizedCounter
 }
 
