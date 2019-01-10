@@ -25,6 +25,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"crypto/sha1"
+	"fmt"
+	"bytes"
 )
 
 type UUID struct {
@@ -67,8 +69,9 @@ const (
 	FlipSignedLeastBits = uint64(0x0080808080808080)
 
 	CounterMask = uint64(0x3FFFFFFFFFFFFFFF)
-	MinCounter = uint64(0x0080808080808080)
-	MaxCounter = uint64(0x7f7f7f7f7f7f7f7f)
+
+	MinCounterLeastBits = uint64(0x0080808080808080)
+	MaxCounterLeastBits = uint64(0x7f7f7f7f7f7f7f7f)
 
 )
 
@@ -88,6 +91,10 @@ const (
 	SHA1NamebasedUUID
 	UnknownVersion
 )
+
+func (this*UUID) Equals(other UUID) bool {
+	return this.mostSigBits == other.mostSigBits && this.leastSigBits == other.leastSigBits
+}
 
 /**
 	Creates new UUID for the specific version
@@ -474,7 +481,7 @@ func (this*UUID) SetNode(node int64) {
 /**
 	Gets counter in range [0 to 3fffffffffffffff]
 
-    Uses clock sequence and node bits to store counter
+    Counter is the composition of ClockSequenceAndNode
 
     Converts from signed values automatically
  */
@@ -486,7 +493,7 @@ func (this* UUID) Counter() uint64 {
 /**
 	Sets counter in range [0 to 3fffffffffffffff]
 
-    Uses clock sequence and node bits to store counter
+    Counter is the composition of ClockSequenceAndNode
 
     Converts to signed values automatically
 
@@ -509,7 +516,7 @@ func (this* UUID) SetCounter(counter uint64) uint64 {
  */
 
 func (this* UUID) SetMinCounter() {
-	this.leastSigBits = MinCounter | IETFVariant
+	this.leastSigBits = MinCounterLeastBits | IETFVariant
 }
 
 /**
@@ -519,9 +526,62 @@ func (this* UUID) SetMinCounter() {
  */
 
 func (this* UUID) SetMaxCounter() {
-	this.leastSigBits = MaxCounter | IETFVariant
+	this.leastSigBits = MaxCounterLeastBits | IETFVariant
 }
 
+/**
+	Parses string representation of UUID
+ */
+
+func (this* UUID) Parse(s string) error {
+	return this.ParseBytes([]byte(s))
+}
+
+/**
+   Parses bytes are a string representation of UUID
+ */
+
+func (this* UUID) ParseBytes(src []byte) error {
+	switch len(src) {
+	// xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+	case 36:
+		if src[8] != '-' || src[13] != '-' || src[18] != '-' || src[23] != '-' {
+			return fmt.Errorf("invalid UUID format: %q", src)
+		}
+		var trunc [32]byte
+		copy(trunc[:8], src[:8])
+		copy(trunc[8:12], src[9:13])
+		copy(trunc[12:16], src[14:18])
+		copy(trunc[16:20], src[19:23])
+		copy(trunc[20:], src[24:36])
+		return this.ParseBytes(trunc[:])
+
+		// urn:uuid:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+	case 36 + 9:
+		if !bytes.Equal(bytes.ToLower(src[:9]), []byte("urn:uuid:")) {
+			return fmt.Errorf("invalid urn prefix in %q", src)
+		}
+		return this.ParseBytes(src[9:])
+
+		// {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
+	case 36 + 2:
+		if src[0] != '{' || src[37] != '}' {
+			return fmt.Errorf("invalid brackets: %q", src)
+		}
+		return this.ParseBytes(src[1:37])
+
+		// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+	case 32:
+		var data [16]byte
+		hex.Decode(data[:], src)
+		this.UnmarshalBinary(data[:])
+		return nil
+
+	default:
+		return fmt.Errorf("invalid UUID length: %q", src)
+	}
+
+}
 
 /**
 	Converts UUID in to string
@@ -551,7 +611,27 @@ func (this*UUID) String() string {
 	return string(dst)
 }
 
+func (this*UUID) URN() string {
+	return "urn:uuid:" + this.String()
+}
 
+func (v Version) String() string {
+	return fmt.Sprintf("UUID_V%d", v)
+}
+
+func (v Variant) String() string {
+	switch v {
+	case IETF:
+		return "RFC4122"
+	case NCSReserved:
+		return "NCSBackwardCompatibility"
+	case MicrosoftReserved:
+		return "Microsoft"
+	case FutureReserved:
+		return "Future"
+	}
+	return fmt.Sprintf("BadVariant%d", int(v))
+}
 
 
 

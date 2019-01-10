@@ -126,10 +126,15 @@ func testTimebased(t *testing.T) {
 	fmt.Printf("counter=%x\n", uuid.Counter())
 	binMax := uuid.MarshalSortableBinary()
 
+	var comp UUID
+
 	for i := 1; i != 100; i = i + 1 {
 
 		anyNumber := uint64(i)
 		uuid.SetCounter(anyNumber)
+
+		assert.Nil(t, comp.Parse(uuid.String()))
+		assert.True(t, uuid.Equals(comp))
 
 		binLesser := uuid.MarshalSortableBinary()
 		uuid.SetCounter(anyNumber+1)
