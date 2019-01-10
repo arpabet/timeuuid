@@ -29,31 +29,51 @@ import (
 
 type UUID struct {
 
-	mostSigBits   int64
-	leastSigBits  int64
+	mostSigBits   uint64
+	leastSigBits  uint64
 
 }
+
+var ZeroUUID = UUID{0, 0}
 
 type Variant int
 
 // Constants returned by Variant.
 const (
-	Invalid   = Variant(iota) // Invalid UUID
-	RFC4122                   // The variant specified in RFC4122
-	Reserved                  // Reserved, NCS backward compatibility.
-	Microsoft                 // Reserved, Microsoft Corporation backward compatibility.
-	Future                    // Reserved for future definition.
+	NCSReserved   = Variant(iota)
+	IETF                      // The IETF variant specified in RFC4122
+	MicrosoftReserved         // Reserved, Microsoft Corporation backward compatibility.
+	FutureReserved            // Reserved for future definition.
+	UnknownVariant
 )
 
 const (
-	NUM_100NS_IN_MILLISECOND = int64(10000)
-	NUM_100NS_SINCE_UUID_EPOCH = int64(0x01b21dd213814000)
+
+	IETFVariant = uint64(0x80) << 56
+
+	Num100NanosInMillis       = int64(10000)
+	Num100NanosSinceUUIDEpoch = int64(0x01b21dd213814000)
+
+	VersionMask = uint64(0x000000000000F000)
+
+	MinNode = int64(0)
+	MaxNode = int64(0x0000FFFFFFFFFFFF)
+	NodeClearMask = uint64(0xFFFF000000000000)
+
+	MinClockSequence = int(0)
+	MaxClockSequence = int(0x3FFF)
+	ClockSequenceClearMask = uint64(0xC000FFFFFFFFFFFF)
+
+	FlipSignedLeastBits = uint64(0x0080808080808080)
+
+	CounterMask = uint64(0x3FFFFFFFFFFFFFFF)
+	MinCounter = uint64(0x0080808080808080)
+	MaxCounter = uint64(0x7f7f7f7f7f7f7f7f)
+
 )
 
 var (
-
 	ErrorWrongLen = errors.New("data must be 16 bytes in length")
-
 )
 
 type Version int
@@ -70,6 +90,50 @@ const (
 )
 
 /**
+	Creates new UUID for the specific version
+ */
+
+func NewUUID(version Version) (uuid UUID) {
+
+	uuid.mostSigBits = uint64(version) << 12
+	uuid.leastSigBits = IETFVariant
+
+	return uuid
+}
+
+/**
+	Gets most significant bits as long
+ */
+
+func (this*UUID) MostSignificantBits() int64 {
+	return int64(this.mostSigBits)
+}
+
+/**
+	Sets most significant bits from long
+ */
+
+func (this*UUID) SetMostSignificantBits(mostSigBits int64) {
+	this.mostSigBits = uint64(mostSigBits)
+}
+
+/**
+	Gets least significant bits as long
+ */
+
+func (this*UUID) LeastSignificantBits() int64 {
+	return int64(this.leastSigBits);
+}
+
+/**
+	Sets least significant bits from long
+ */
+
+func (this*UUID) SetLeastSignificantBits(leastSigBits int64) {
+	this.leastSigBits = uint64(leastSigBits)
+}
+
+/**
      Convert serialized 16 bytes to UUID
  */
 
@@ -79,8 +143,8 @@ func (this*UUID) UnmarshalBinary(data []byte) error {
 		return ErrorWrongLen
 	}
 
-	this.mostSigBits = int64(binary.BigEndian.Uint64(data))
-	this.leastSigBits = int64(binary.BigEndian.Uint64(data[8:]))
+	this.mostSigBits = binary.BigEndian.Uint64(data)
+	this.leastSigBits = binary.BigEndian.Uint64(data[8:])
 
 	return nil
 }
@@ -88,7 +152,7 @@ func (this*UUID) UnmarshalBinary(data []byte) error {
 /**
      Convert sortable representation of serialized 16 bytes to UUID
 
-     Sortable representation flips timestamp blocks to make TimeUUID sortable as byte array
+     Sortable representation flips timestamp blocks to make TimeUUID sortable as byte array and converts signed bytes to unsigned
  */
 
 func (this*UUID) UnmarshalSortableBinary(data []byte) error {
@@ -101,10 +165,8 @@ func (this*UUID) UnmarshalSortableBinary(data []byte) error {
 	timeMid := uint64(binary.BigEndian.Uint16(data[2:]))
 	timeLow := uint64(binary.BigEndian.Uint32(data[4:]))
 
-	msb := (timeLow << 32) | (timeMid << 16) | timeHighAndVersion;
-
-	this.mostSigBits = int64(msb)
-	this.leastSigBits = int64(binary.BigEndian.Uint64(data[8:]))
+	this.mostSigBits = (timeLow << 32) | (timeMid << 16) | timeHighAndVersion
+	this.leastSigBits = binary.BigEndian.Uint64(data[8:]) ^ FlipSignedLeastBits
 
 	return nil
 }
@@ -130,8 +192,8 @@ func (this*UUID) MarshalBinaryTo(dst []byte) error {
 		return ErrorWrongLen
 	}
 
-	binary.BigEndian.PutUint64(dst, uint64(this.mostSigBits))
-	binary.BigEndian.PutUint64(dst[8:], uint64(this.leastSigBits))
+	binary.BigEndian.PutUint64(dst, this.mostSigBits)
+	binary.BigEndian.PutUint64(dst[8:], this.leastSigBits)
 
 	return nil
 }
@@ -147,7 +209,7 @@ func (this*UUID) MarshalSortableBinary() []byte {
 }
 
 /**
-     Stores UUID in to slice by flipping timestamp parts to make byte array sortable
+     Stores UUID in to slice by flipping timestamp parts to make byte array sortable and converts signed bytes to unsigned
  */
 
 func (this*UUID) MarshalSortableBinaryTo(dst []byte) error {
@@ -163,50 +225,9 @@ func (this*UUID) MarshalSortableBinaryTo(dst []byte) error {
 	binary.BigEndian.PutUint16(dst, timeHighAndVersion)
 	binary.BigEndian.PutUint16(dst[2:], timeMid)
 	binary.BigEndian.PutUint32(dst[4:], timeLow)
-	binary.BigEndian.PutUint64(dst[8:], uint64(this.leastSigBits))
+	binary.BigEndian.PutUint64(dst[8:], this.leastSigBits ^ FlipSignedLeastBits)
 
 	return nil
-}
-
-/**
-     Flips timestamp parts to make byte array sortable
- */
-
-func ConvertBinaryToSortableBinary(uuid []byte) ([]byte, error) {
-
-	if len(uuid) < 16 {
-		return nil, ErrorWrongLen
-	}
-
-	srt := make([]byte, 16)
-
-	copy(srt[0:2], uuid[6:8])
-	copy(srt[2:4], uuid[4:6])
-	copy(srt[4:8], uuid[0:4])
-	copy(srt[8:16], uuid[8:16])
-
-	return srt, nil
-
-}
-
-/**
-     Restores original uuid byte array from sortable one
- */
-
-func ConvertSortableBinaryToBinary(srt []byte) ([]byte, error) {
-
-	if len(srt) < 16 {
-		return nil, ErrorWrongLen
-	}
-
-	uuid := make([]byte, 16)
-
-	copy(uuid[0:4], srt[4:8])
-	copy(uuid[4:6], srt[2:4])
-	copy(uuid[6:8], srt[0:2])
-	copy(uuid[8:16], srt[8:16])
-
-	return uuid, nil
 }
 
 /**
@@ -272,8 +293,7 @@ func SHA1NameUUIDFromBytes(name []byte) (uuid UUID, err error) {
 
 func (this*UUID) Version() Version {
 
-	// Version is bits masked by 0x000000000000F000 in MS long
-	version := int((this.mostSigBits >> 12) & 0x0f);
+	version := int((this.mostSigBits & VersionMask) >> 12)
 
 	if version >= int(UnknownVersion) {
 		return UnknownVersion
@@ -288,17 +308,25 @@ func (this*UUID) Version() Version {
 
 func (this*UUID) Variant() Variant {
 
-	variant := int(this.leastSigBits >> 56) & 0xFF;
+	variant := int((this.leastSigBits >> 56) & 0xFF);
+
+	// This field is composed of a varying number of bits.
+	// 0    x    x   x   Reserved for NCS backward compatibility
+	// 1    0    x   x   The IETF aka Leach-Salz variant (used by this class)
+	// 1    1    0   x   Reserved, Microsoft backward compatibility
+	// 1    1    1   x   Reserved for future definition.
 
 	switch {
-	case variant & 0xc0 == 0x80:
-		return RFC4122
-	case variant & 0xe0 == 0xc0:
-		return Microsoft
-	case variant & 0xe0 == 0xe0:
-		return Future
+	case variant & 0x80 == 0:
+		return NCSReserved
+	case variant & 0xC0 == 0x80:
+		return IETF
+	case variant & 0xE0 == 0xC0:
+		return MicrosoftReserved
+	case variant & 0xE0 == 0xE0:
+		return FutureReserved
 	default:
-		return Reserved
+		return UnknownVariant
 	}
 }
 
@@ -311,12 +339,54 @@ func (this*UUID) Variant() Variant {
  */
 
 func (this*UUID) Time100Nanos() int64 {
+	return int64(this.Time100NanosUnsigned())
+}
 
-	timeHigh := this.mostSigBits & int64(0x0FFF)
-	timeMid := (this.mostSigBits >> 16) & int64(0xFFFF)
-	timeLow := (this.mostSigBits >> 32) & int64(0xFFFFFFFF)
+/**
+    Gets timestamp as 60bit int64 from Time-based UUID
 
-	return (timeHigh << 48) | (timeMid << 32) | timeLow;
+    It is measured in 100-nanosecond units since midnight, October 15, 1582 UTC.
+
+    valid only for version 1 or 2
+ */
+
+func (this*UUID) Time100NanosUnsigned() uint64 {
+
+	timeHigh := this.mostSigBits & 0x0FFF
+	timeMid := (this.mostSigBits >> 16) & 0xFFFF
+	timeLow := (this.mostSigBits >> 32) & 0xFFFFFFFF
+
+	return (timeHigh << 48) | (timeMid << 32) | timeLow
+}
+
+/**
+	Sets time in 100 nanoseconds since midnight, October 15, 1582 UTC.
+ */
+
+func (this*UUID) SetTime100Nanos(time100Nanos int64) {
+	this.SetTime100NanosUnsigned(uint64(time100Nanos))
+}
+
+/**
+	Sets time in 100 nanoseconds since midnight, October 15, 1582 UTC.
+ */
+
+func (this*UUID) SetTime100NanosUnsigned(time100Nanos uint64) {
+
+	bits := this.mostSigBits
+	bits &= VersionMask
+
+	// timeLow
+	bits |= (time100Nanos & 0xFFFFFFFF) << 32
+
+	// timeMid
+	bits |= (time100Nanos & 0xFFFF00000000) >> 16
+
+	// timeHigh
+	bits |= (time100Nanos & 0xFFF000000000000) >> 48
+
+	this.mostSigBits = bits
+
 }
 
 /**
@@ -327,33 +397,131 @@ func (this*UUID) Time100Nanos() int64 {
 
 func (this*UUID) TimestampMillis() int64 {
 
-	return (this.Time100Nanos() - NUM_100NS_SINCE_UUID_EPOCH) / NUM_100NS_IN_MILLISECOND
+	return (this.Time100Nanos() - Num100NanosSinceUUIDEpoch) / Num100NanosInMillis
 
 }
 
+func (this*UUID) SetTimestampMillis(timestampMillis int64) {
+
+	time100Nanos := (timestampMillis * Num100NanosInMillis) + Num100NanosSinceUUIDEpoch
+
+	this.SetTime100Nanos(time100Nanos)
+}
+
 /**
-    Gets 14 bit clock sequence value from Time-based UUID
+    Gets raw 14 bit clock sequence value from Time-based UUID
+
+    unsigned in range [0, 0x3FFF]
+
+    Does not convert signed to unsigned
  */
 
 func (this*UUID) ClockSequence() int {
 
-	variantAndSequence := int(this.leastSigBits >> 48);
+	variantAndSequence := this.leastSigBits >> 48;
 
-	return variantAndSequence & 0x3FFF;
+	return int(variantAndSequence) & MaxClockSequence;
 }
 
 /**
-    Gets node associated with Time-based UUID
+	Sets raw 14 bit clock sequence value to Time-based UUID
+
+    unsigned in range [0, 0x3FFF]
+
+    Does not convert signed to unsigned
+ */
+
+func (this* UUID) SetClockSequence(clockSequence int) {
+
+	sanitizedSequence := uint64(clockSequence & MaxClockSequence)
+
+	this.leastSigBits = (this.leastSigBits & ClockSequenceClearMask) | (sanitizedSequence << 48)
+}
+
+
+/**
+    Gets raw node value associated with Time-based UUID
 
     48 bit node is intended to hold the IEEE 802 address of the machine that generated this UUID to guarantee spatial uniqueness.
 
+    unsigned in range [0, 0xFFFFFFFFFFFF]
+
+    Does not convert signed to unsigned
  */
 
 func (this*UUID) Node() int64 {
 
-	return this.leastSigBits & int64(0x0000FFFFFFFFFFFF);
+	return int64(this.leastSigBits) & MaxNode;
 
 }
+
+/**
+	Stores raw 48 bit value to the node
+
+    unsigned in range [0, 0xFFFFFFFFFFFF]
+
+    Does not convert signed to unsigned
+ */
+
+func (this*UUID) SetNode(node int64) {
+
+	sanitizedNode := uint64(node & MaxNode)
+
+	this.leastSigBits = (this.leastSigBits & NodeClearMask) | sanitizedNode
+
+}
+
+/**
+	Gets counter in range [0 to 3fffffffffffffff]
+
+    Uses clock sequence and node bits to store counter
+
+    Converts from signed values automatically
+ */
+
+func (this* UUID) Counter() uint64 {
+	return (this.leastSigBits ^ FlipSignedLeastBits) & CounterMask
+}
+
+/**
+	Sets counter in range [0 to 3fffffffffffffff]
+
+    Uses clock sequence and node bits to store counter
+
+    Converts to signed values automatically
+
+    return sanitized value stored in UUID
+ */
+
+func (this* UUID) SetCounter(counter uint64) uint64 {
+
+	sanitizedCounter := counter & CounterMask
+
+	this.leastSigBits = (sanitizedCounter | IETFVariant) ^ FlipSignedLeastBits
+
+	return sanitizedCounter
+}
+
+/**
+    Sets min counter
+
+    Guarantees that in sortable binary block will be first after sorting
+ */
+
+func (this* UUID) SetMinCounter() {
+	this.leastSigBits = MinCounter | IETFVariant
+}
+
+/**
+    Sets max counter
+
+    Guarantees that in sortable binary block will be last after sorting
+ */
+
+func (this* UUID) SetMaxCounter() {
+	this.leastSigBits = MaxCounter | IETFVariant
+}
+
 
 /**
 	Converts UUID in to string
@@ -369,9 +537,18 @@ func (this*UUID) Node() int64 {
  */
 
 func (this*UUID) String() string {
-	dst := make([]byte, 32)
-	hex.Encode(dst, this.MarshalBinary())
-	return string(dst[0:8]) + "-" + string(dst[8:12]) + "-" + string(dst[12:16]) + "-" + string(dst[16:20]) + "-" + string(dst[20:32])
+	dst := make([]byte, 36)
+	uuid := this.MarshalBinary()
+	hex.Encode(dst, uuid[:4])
+	dst[8] = '-'
+	hex.Encode(dst[9:13], uuid[4:6])
+	dst[13] = '-'
+	hex.Encode(dst[14:18], uuid[6:8])
+	dst[18] = '-'
+	hex.Encode(dst[19:23], uuid[8:10])
+	dst[23] = '-'
+	hex.Encode(dst[24:], uuid[10:])
+	return string(dst)
 }
 
 
