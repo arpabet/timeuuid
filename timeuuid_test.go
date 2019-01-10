@@ -150,7 +150,7 @@ func testTimebased(t *testing.T) {
 
 	for i := 1; i != 100; i = i + 1 {
 
-		anyNumber := uint64(i)
+		anyNumber := int64(i)
 		uuid.SetCounter(anyNumber)
 
 		assert.Nil(t, comp.Parse(uuid.String()))

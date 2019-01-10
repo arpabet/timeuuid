@@ -490,7 +490,19 @@ func (this*UUID) SetNode(node int64) {
     Converts from signed values automatically
  */
 
-func (this* UUID) Counter() uint64 {
+func (this* UUID) Counter() int64 {
+	return int64(this.CounterUnsigned())
+}
+
+/**
+	Gets counter in range [0 to 3fffffffffffffff]
+
+    Counter is the composition of ClockSequenceAndNode
+
+    Converts from signed values automatically
+ */
+
+func (this* UUID) CounterUnsigned() uint64 {
 	return (this.leastSigBits ^ FlipSignedBits) & CounterMask
 }
 
@@ -504,7 +516,21 @@ func (this* UUID) Counter() uint64 {
     return sanitized value stored in UUID
  */
 
-func (this* UUID) SetCounter(counter uint64) uint64 {
+func (this* UUID) SetCounter(counter int64) int64 {
+	return int64(this.SetCounterUnsigned(uint64(counter)))
+}
+
+/**
+	Sets counter in range [0 to 3fffffffffffffff]
+
+    Counter is the composition of ClockSequenceAndNode
+
+    Converts to signed values automatically
+
+    return sanitized value stored in UUID
+ */
+
+func (this* UUID) SetCounterUnsigned(counter uint64) uint64 {
 	sanitizedCounter := counter & CounterMask
 	this.leastSigBits = (sanitizedCounter | IETFVariant) ^ FlipSignedBits
 	return sanitizedCounter
