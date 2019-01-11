@@ -54,7 +54,8 @@ const (
 
 	IETFVariant = uint64(0x80) << 56
 
-	Num100NanosInMillis       = int64(10000)
+	One100NanosInSecond       = int64(time.Second) / 100
+	One100NanosInMillis       = int64(time.Millisecond) / 100
 	Num100NanosSinceUUIDEpoch = int64(0x01b21dd213814000)
 
 	VersionMask = uint64(0x000000000000F000)
@@ -75,7 +76,6 @@ const (
 	MinCounterLeastBits = uint64(0x0080808080808080)
 	MaxCounterLeastBits = uint64(0x7f7f7f7f7f7f7f7f)
 
-	one100NanosInSecond = int64(time.Second) / 100
 )
 
 var (
@@ -420,7 +420,7 @@ func (this*UUID) SetTime100NanosUnsigned(time100Nanos uint64) {
 
 func (this UUID) UnixTimeMillis() int64 {
 
-	return (this.Time100Nanos() - Num100NanosSinceUUIDEpoch) / Num100NanosInMillis
+	return (this.Time100Nanos() - Num100NanosSinceUUIDEpoch) / One100NanosInMillis
 
 }
 
@@ -432,7 +432,7 @@ func (this UUID) UnixTimeMillis() int64 {
 
 func (this*UUID) SetUnixTimeMillis(unixTimeMillis int64) {
 
-	time100Nanos := (unixTimeMillis * Num100NanosInMillis) + Num100NanosSinceUUIDEpoch
+	time100Nanos := (unixTimeMillis * One100NanosInMillis) + Num100NanosSinceUUIDEpoch
 
 	this.SetTime100Nanos(time100Nanos)
 }
@@ -467,7 +467,7 @@ func (this*UUID) SetUnixTime100Nanos(unixTime100Nanos int64) {
 
 func (this UUID) Time() time.Time {
 	unixTime100Nanos := this.UnixTime100Nanos()
-	return time.Unix(unixTime100Nanos / one100NanosInSecond, (unixTime100Nanos % one100NanosInSecond) * 100)
+	return time.Unix(unixTime100Nanos /One100NanosInSecond, (unixTime100Nanos %One100NanosInSecond) * 100)
 }
 
 /**
@@ -477,8 +477,8 @@ func (this UUID) Time() time.Time {
 func (this*UUID) SetTime(t time.Time) {
 	sec := t.Unix()
 	nsec := int64(t.Nanosecond())
-	one100Nanos := (nsec / 100) % one100NanosInSecond
-	this.SetUnixTime100Nanos(sec * one100NanosInSecond + one100Nanos)
+	one100Nanos := (nsec / 100) % One100NanosInSecond
+	this.SetUnixTime100Nanos(sec *One100NanosInSecond + one100Nanos)
 }
 
 
@@ -628,7 +628,7 @@ func Parse(s string) (UUID, error) {
 
 func ParseBytes(src []byte) (UUID, error) {
 
-	for ;; {
+	for {
 
 		switch len(src) {
 

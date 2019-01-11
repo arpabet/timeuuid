@@ -24,24 +24,47 @@ import (
 	"github.com/stretchr/testify/assert"
 	"bytes"
 	"fmt"
+	"time"
+	"math/rand"
 )
 
 func TestSuit(t *testing.T) {
 
 	println("ZeroUUID=", ZeroUUID.String())
 
-	testTimebased(t)
+	testTimebasedUUID(t)
 
 	uuid := NewUUID(DCESecurityUUID)
 	assert.Equal(t, IETF, uuid.Variant())
 	assert.Equal(t, DCESecurityUUID, uuid.Version())
 
-	testRandomlyGenerated(t)
-	testNamebased(t)
+	testRandomlyGeneratedUUID(t)
+	testNamebasedUUID(t)
 
+	testTimebasedNamedUUID(t)
+
+	testParser(t)
+
+}
+
+func testParser(t *testing.T) {
+
+	uuid := NewUUID(TimebasedUUID)
+	uuid.SetTime(time.Now())
+	uuid.SetCounter(rand.Int63())
+
+	comp, err := Parse(uuid.String())
+	if err != nil {
+		t.Fatal("parse failed ", uuid.String(), err)
+	}
+
+	assert.True(t, uuid.Equal(comp))
+
+}
+
+func testTimebasedNamedUUID(t *testing.T) {
 
 	uuid, err := NameUUIDFromBytes([]byte("content"), SHA1NamebasedUUID)
-
 	if err != nil {
 		t.Fatal("fail to create name uuid ", err)
 	}
@@ -55,13 +78,17 @@ func TestSuit(t *testing.T) {
 	assert.Equal(t, IETF, uuid.Variant())
 	assert.Equal(t, TimebasedUUID, uuid.Version())
 	assert.Equal(t, int64(0), uuid.UnixTimeMillis())
-
 	assert.Equal(t, uint64(0x138140001dd211b2), uuid.mostSigBits)
 	assert.Equal(t, uint64(0x8d450774f5ba30c5), uuid.leastSigBits)
 
+	assertMarshalText(t, uuid)
+	assertMarshalJson(t, uuid)
+	assertMarshalBinary(t, uuid)
+	assertMarshalSortableBinary(t, uuid)
+
 }
 
-func testTimebased(t *testing.T) {
+func testTimebasedUUID(t *testing.T) {
 
 	uuid := NewUUID(TimebasedUUID)
 	assert.Equal(t, IETF, uuid.Variant())
@@ -152,13 +179,6 @@ func testTimebased(t *testing.T) {
 		anyNumber := int64(i)
 		uuid.SetCounter(anyNumber)
 
-		comp, err := Parse(uuid.String())
-		if err != nil {
-			t.Fatal("parse failed ", uuid.String(), err)
-		}
-
-		assert.True(t, uuid.Equal(comp))
-
 		binLesser := uuid.MarshalSortableBinary()
 		uuid.SetCounter(anyNumber+1)
 
@@ -169,10 +189,24 @@ func testTimebased(t *testing.T) {
 		assert.True(t, bytes.Compare(binGreater, binMax) < 0, "max failed")
 	}
 
+	uuid = NewUUID(TimebasedUUID)
+
+	current := time.Now()
+
+	uuid.SetTime(current)
+	cnt := uuid.SetCounter(rand.Int63())
+
+	assert.Equal(t, current.UnixNano() / 100, uuid.Time().UnixNano() / 100)
+	assert.Equal(t, cnt, uuid.Counter())
+
+	assertMarshalText(t, uuid)
+	assertMarshalJson(t, uuid)
+	assertMarshalBinary(t, uuid)
+	assertMarshalSortableBinary(t, uuid)
 
 }
 
-func testRandomlyGenerated(t *testing.T) {
+func testRandomlyGeneratedUUID(t *testing.T) {
 
 	uuid := NewUUID(RandomlyGeneratedUUID)
 	assert.Equal(t, IETF, uuid.Variant())
@@ -187,12 +221,14 @@ func testRandomlyGenerated(t *testing.T) {
 	assert.Equal(t, IETF, uuid.Variant())
 	assert.Equal(t, RandomlyGeneratedUUID, uuid.Version())
 
-	assertMarshal(t, uuid)
-	assertSortableMarshal(t, uuid)
+	assertMarshalText(t, uuid)
+	assertMarshalJson(t, uuid)
+	assertMarshalBinary(t, uuid)
+	assertMarshalSortableBinary(t, uuid)
 
 }
 
-func testNamebased(t *testing.T) {
+func testNamebasedUUID(t *testing.T) {
 
 	uuid := NewUUID(SHA1NamebasedUUID)
 	assert.Equal(t, IETF, uuid.Variant())
@@ -215,12 +251,55 @@ func testNamebased(t *testing.T) {
 
 	assert.Equal(t, "534b44a1-9bf1-3d20-b71e-cc4eb77c572f", uuid.String())
 
-	assertMarshal(t, uuid)
-	assertSortableMarshal(t, uuid)
+	assertMarshalText(t, uuid)
+	assertMarshalJson(t, uuid)
+	assertMarshalBinary(t, uuid)
+	assertMarshalSortableBinary(t, uuid)
 
 }
 
-func assertMarshal(t *testing.T, uuid UUID) {
+func assertMarshalText(t *testing.T, uuid UUID) {
+
+	var actual UUID
+	data, err := uuid.MarshalText()
+
+	if err != nil {
+		t.Fatal("fail to MarshalText ", err)
+	}
+
+	err = actual.UnmarshalText(data)
+
+	if err != nil {
+		t.Fatal("fail to MarshalText ", err)
+	}
+
+	assert.Equal(t, uuid.mostSigBits, actual.mostSigBits)
+	assert.Equal(t, uuid.leastSigBits, actual.leastSigBits)
+
+
+}
+
+func assertMarshalJson(t *testing.T, uuid UUID) {
+
+	var actual UUID
+	data, err := uuid.MarshalJSON()
+
+	if err != nil {
+		t.Fatal("fail to MarshalJson ", err)
+	}
+
+	err = actual.UnmarshalJSON(data)
+
+	if err != nil {
+		t.Fatal("fail to UnmarshalJson ", err)
+	}
+
+	assert.Equal(t, uuid.mostSigBits, actual.mostSigBits)
+	assert.Equal(t, uuid.leastSigBits, actual.leastSigBits)
+
+
+}
+func assertMarshalBinary(t *testing.T, uuid UUID) {
 
 	var actual UUID
 	data, err := uuid.MarshalBinary()
@@ -241,7 +320,7 @@ func assertMarshal(t *testing.T, uuid UUID) {
 
 }
 
-func assertSortableMarshal(t *testing.T, uuid UUID) {
+func assertMarshalSortableBinary(t *testing.T, uuid UUID) {
 
 	var actual UUID
 	err := actual.UnmarshalSortableBinary(uuid.MarshalSortableBinary())
