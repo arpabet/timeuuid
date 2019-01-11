@@ -14,7 +14,7 @@ import "github.com/shvid/timeuuid"
 ### Quick start example:
 ```
 	uuid := timeuuid.NewUUID(timeuuid.TimebasedUUID)
-	uuid.SetTimestampMillis(123)
+	uuid.SetUnixTimeMillis(123)
 	uuid.SetCounter(555)
 	fmt.Print(uuid.MarshalBinary())
 	uuid.Parse(uuid.String())
