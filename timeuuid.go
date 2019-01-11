@@ -27,6 +27,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"bytes"
+	"time"
 )
 
 type UUID struct {
@@ -74,10 +75,11 @@ const (
 	MinCounterLeastBits = uint64(0x0080808080808080)
 	MaxCounterLeastBits = uint64(0x7f7f7f7f7f7f7f7f)
 
+	one100NanosInSecond = int64(time.Second) / 100
 )
 
 var (
-	ErrorWrongLen = errors.New("data must be 16 bytes in length")
+	ErrorWrongLen = errors.New("wrong len")
 )
 
 type Version int
@@ -93,7 +95,7 @@ const (
 	UnknownVersion
 )
 
-func (this*UUID) Equals(other UUID) bool {
+func (this UUID) Equal(other UUID) bool {
 	return this.mostSigBits == other.mostSigBits && this.leastSigBits == other.leastSigBits
 }
 
@@ -113,7 +115,7 @@ func NewUUID(version Version) (uuid UUID) {
 	Gets most significant bits as long
  */
 
-func (this*UUID) MostSignificantBits() int64 {
+func (this UUID) MostSignificantBits() int64 {
 	return int64(this.mostSigBits)
 }
 
@@ -129,7 +131,7 @@ func (this*UUID) SetMostSignificantBits(mostSigBits int64) {
 	Gets least significant bits as long
  */
 
-func (this*UUID) LeastSignificantBits() int64 {
+func (this UUID) LeastSignificantBits() int64 {
 	return int64(this.leastSigBits);
 }
 
@@ -143,6 +145,8 @@ func (this*UUID) SetLeastSignificantBits(leastSigBits int64) {
 
 /**
      Convert serialized 16 bytes to UUID
+
+     UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
  */
 
 func (this*UUID) UnmarshalBinary(data []byte) error {
@@ -181,20 +185,23 @@ func (this*UUID) UnmarshalSortableBinary(data []byte) error {
 
 /**
      Stores UUID in to 16 bytes
+
+     MarshalBinary implements the encoding.BinaryMarshaler interface.
  */
 
-func (this*UUID) MarshalBinary() []byte {
+func (this UUID) MarshalBinary() (dst []byte, err error) {
 
-	dst := make([]byte, 16)
-	this.MarshalBinaryTo(dst)
-	return dst
+	dst = make([]byte, 16)
+	err = this.MarshalBinaryTo(dst)
+	return dst, err
+
 }
 
 /**
      Stores UUID in to slice
  */
 
-func (this*UUID) MarshalBinaryTo(dst []byte) error {
+func (this UUID) MarshalBinaryTo(dst []byte) error {
 
 	if len(dst) < 16 {
 		return ErrorWrongLen
@@ -210,7 +217,7 @@ func (this*UUID) MarshalBinaryTo(dst []byte) error {
      Stores UUID in to 16 bytes by flipping timestamp parts to make byte array sortable
  */
 
-func (this*UUID) MarshalSortableBinary() []byte {
+func (this UUID) MarshalSortableBinary() []byte {
 	dst := make([]byte, 16)
 	this.MarshalSortableBinaryTo(dst)
 	return dst
@@ -220,7 +227,7 @@ func (this*UUID) MarshalSortableBinary() []byte {
      Stores UUID in to slice by flipping timestamp parts to make byte array sortable and converts signed bytes to unsigned
  */
 
-func (this*UUID) MarshalSortableBinaryTo(dst []byte) error {
+func (this UUID) MarshalSortableBinaryTo(dst []byte) error {
 
 	if len(dst) < 16 {
 		return ErrorWrongLen
@@ -308,7 +315,7 @@ func (this*UUID) SetName(name []byte, version Version) error {
     Gets version of the UUID
  */
 
-func (this*UUID) Version() Version {
+func (this UUID) Version() Version {
 
 	version := int((this.mostSigBits & VersionMask) >> 12)
 
@@ -323,7 +330,7 @@ func (this*UUID) Version() Version {
 	Gets variant of the UUID
  */
 
-func (this*UUID) Variant() Variant {
+func (this UUID) Variant() Variant {
 
 	variant := int((this.leastSigBits >> 56) & 0xFF);
 
@@ -355,7 +362,7 @@ func (this*UUID) Variant() Variant {
     valid only for version 1 or 2
  */
 
-func (this*UUID) Time100Nanos() int64 {
+func (this UUID) Time100Nanos() int64 {
 	return int64(this.Time100NanosUnsigned())
 }
 
@@ -367,7 +374,7 @@ func (this*UUID) Time100Nanos() int64 {
     valid only for version 1 or 2
  */
 
-func (this*UUID) Time100NanosUnsigned() uint64 {
+func (this UUID) Time100NanosUnsigned() uint64 {
 
 	timeHigh := this.mostSigBits & 0x0FFF
 	timeMid := (this.mostSigBits >> 16) & 0xFFFF
@@ -411,18 +418,69 @@ func (this*UUID) SetTime100NanosUnsigned(time100Nanos uint64) {
 	It is measured in millisecond units in unix time since 1 Jan 1970
  */
 
-func (this*UUID) TimestampMillis() int64 {
+func (this UUID) UnixTimeMillis() int64 {
 
 	return (this.Time100Nanos() - Num100NanosSinceUUIDEpoch) / Num100NanosInMillis
 
 }
 
-func (this*UUID) SetTimestampMillis(timestampMillis int64) {
+/**
+	Sets timestamp in milliseconds to Time-based UUID
 
-	time100Nanos := (timestampMillis * Num100NanosInMillis) + Num100NanosSinceUUIDEpoch
+    It is measured in millisecond units in unix time since 1 Jan 1970
+ */
+
+func (this*UUID) SetUnixTimeMillis(unixTimeMillis int64) {
+
+	time100Nanos := (unixTimeMillis * Num100NanosInMillis) + Num100NanosSinceUUIDEpoch
 
 	this.SetTime100Nanos(time100Nanos)
 }
+
+/**
+	Gets timestamp in 100 nanoseconds from Time-based UUID
+
+	It is measured in millisecond units in unix time since 1 Jan 1970
+ */
+
+func (this UUID) UnixTime100Nanos() int64 {
+
+	return this.Time100Nanos() - Num100NanosSinceUUIDEpoch
+
+}
+
+/**
+	Sets timestamp in 100 nanoseconds to Time-based UUID
+
+    It is measured in millisecond units in unix time since 1 Jan 1970
+ */
+
+func (this*UUID) SetUnixTime100Nanos(unixTime100Nanos int64) {
+
+	this.SetTime100Nanos(unixTime100Nanos + Num100NanosSinceUUIDEpoch)
+}
+
+
+/**
+	Gets Time from Time-based UUID
+ */
+
+func (this UUID) Time() time.Time {
+	unixTime100Nanos := this.UnixTime100Nanos()
+	return time.Unix(unixTime100Nanos / one100NanosInSecond, (unixTime100Nanos % one100NanosInSecond) * 100)
+}
+
+/**
+	Sets Time to Time-based UUID
+ */
+
+func (this*UUID) SetTime(t time.Time) {
+	sec := t.Unix()
+	nsec := int64(t.Nanosecond())
+	one100Nanos := (nsec / 100) % one100NanosInSecond
+	this.SetUnixTime100Nanos(sec * one100NanosInSecond + one100Nanos)
+}
+
 
 /**
     Gets raw 14 bit clock sequence value from Time-based UUID
@@ -432,7 +490,7 @@ func (this*UUID) SetTimestampMillis(timestampMillis int64) {
     Does not convert signed to unsigned
  */
 
-func (this*UUID) ClockSequence() int {
+func (this UUID) ClockSequence() int {
 
 	variantAndSequence := this.leastSigBits >> 48;
 
@@ -465,7 +523,7 @@ func (this* UUID) SetClockSequence(clockSequence int) {
     Does not convert signed to unsigned
  */
 
-func (this*UUID) Node() int64 {
+func (this UUID) Node() int64 {
 	return int64(this.leastSigBits) & MaxNode;
 }
 
@@ -490,7 +548,7 @@ func (this*UUID) SetNode(node int64) {
     Converts from signed values automatically
  */
 
-func (this* UUID) Counter() int64 {
+func (this UUID) Counter() int64 {
 	return int64(this.CounterUnsigned())
 }
 
@@ -502,7 +560,7 @@ func (this* UUID) Counter() int64 {
     Converts from signed values automatically
  */
 
-func (this* UUID) CounterUnsigned() uint64 {
+func (this UUID) CounterUnsigned() uint64 {
 	return (this.leastSigBits ^ FlipSignedBits) & CounterMask
 }
 
@@ -560,55 +618,136 @@ func (this* UUID) SetMaxCounter() {
 	Parses string representation of UUID
  */
 
-func (this* UUID) Parse(s string) error {
-	return this.ParseBytes([]byte(s))
+func Parse(s string) (UUID, error) {
+	return ParseBytes([]byte(s))
 }
 
 /**
    Parses bytes are a string representation of UUID
  */
 
-func (this* UUID) ParseBytes(src []byte) error {
-	switch len(src) {
-	// xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-	case 36:
-		if src[8] != '-' || src[13] != '-' || src[18] != '-' || src[23] != '-' {
-			return fmt.Errorf("invalid UUID format: %q", src)
+func ParseBytes(src []byte) (UUID, error) {
+
+	for ;; {
+
+		switch len(src) {
+
+		// xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+		case 36:
+			if src[8] != '-' || src[13] != '-' || src[18] != '-' || src[23] != '-' {
+				return ZeroUUID, fmt.Errorf("invalid UUID format: %q", src)
+			}
+			var trunc [32]byte
+			copy(trunc[:8], src[:8])
+			copy(trunc[8:12], src[9:13])
+			copy(trunc[12:16], src[14:18])
+			copy(trunc[16:20], src[19:23])
+			copy(trunc[20:], src[24:36])
+			src = trunc[:]
+
+			// urn:uuid:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+		case 36 + 9:
+			if !bytes.Equal(bytes.ToLower(src[:9]), []byte("urn:uuid:")) {
+				return ZeroUUID, fmt.Errorf("invalid urn prefix in %q", src)
+			}
+			src = src[9:]
+
+			// {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx} or "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" or similar
+		case 36 + 2:
+			src = src[1:37]
+
+			// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+		case 32:
+			var data [16]byte
+			hex.Decode(data[:], src)
+			var uuid UUID
+			err := uuid.UnmarshalBinary(data[:])
+			return uuid, err
+
+		default:
+			fmt.Printf("finish %s", src)
+			return ZeroUUID, fmt.Errorf("invalid UUID length: %q", src)
 		}
-		var trunc [32]byte
-		copy(trunc[:8], src[:8])
-		copy(trunc[8:12], src[9:13])
-		copy(trunc[12:16], src[14:18])
-		copy(trunc[16:20], src[19:23])
-		copy(trunc[20:], src[24:36])
-		return this.ParseBytes(trunc[:])
 
-		// urn:uuid:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-	case 36 + 9:
-		if !bytes.Equal(bytes.ToLower(src[:9]), []byte("urn:uuid:")) {
-			return fmt.Errorf("invalid urn prefix in %q", src)
-		}
-		return this.ParseBytes(src[9:])
+	}
+}
 
-		// {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
-	case 36 + 2:
-		if src[0] != '{' || src[37] != '}' {
-			return fmt.Errorf("invalid brackets: %q", src)
-		}
-		return this.ParseBytes(src[1:37])
+/**
+	UnmarshalText implements the encoding.TextUnmarshaler interface.
+ */
 
-		// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-	case 32:
-		var data [16]byte
-		hex.Decode(data[:], src)
-		this.UnmarshalBinary(data[:])
-		return nil
+func (this *UUID) UnmarshalText(data []byte) error {
+	var err error
+	*this, err = ParseBytes(data)
+	return err
+}
 
-	default:
-		return fmt.Errorf("invalid UUID length: %q", src)
+/**
+     MarshalText implements the encoding.TextMarshaler interface.
+ */
+
+func (this UUID) MarshalText() ([]byte, error) {
+	dst := make([]byte, 36)
+	err := this.MarshalTextTo(dst)
+	return dst, err
+}
+
+/**
+	Marshal text to preallocated slice
+ */
+
+func (this UUID) MarshalTextTo(dst []byte) error {
+
+	if len(dst) < 36 {
+		return ErrorWrongLen
 	}
 
+	data, err := this.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	hex.Encode(dst, data[:4])
+	dst[8] = '-'
+	hex.Encode(dst[9:13], data[4:6])
+	dst[13] = '-'
+	hex.Encode(dst[14:18], data[6:8])
+	dst[18] = '-'
+	hex.Encode(dst[19:23], data[8:10])
+	dst[23] = '-'
+	hex.Encode(dst[24:], data[10:])
+	return nil
 }
+
+/**
+	UnmarshalJSON implements the json.Unmarshaler interface.
+ */
+
+func (this *UUID) UnmarshalJSON(data []byte) error {
+	// Ignore null, like in the main JSON package.
+	if string(data) == "null" {
+		return nil
+	}
+	// Fractional seconds are handled implicitly by Parse.
+	var err error
+	*this, err = ParseBytes(data)
+	return err
+}
+
+/**
+	MarshalJSON implements the json.Marshaler interface.
+ */
+
+func (this UUID) MarshalJSON() ([]byte, error) {
+
+	jsonVal := make([]byte, 36+2)
+	jsonVal[0] = '"'
+	jsonVal[37] = '"'
+	err := this.MarshalTextTo(jsonVal[1:37])
+
+	return jsonVal, err
+}
+
 
 /**
 	Converts UUID in to string
@@ -623,22 +762,12 @@ func (this* UUID) ParseBytes(src []byte) error {
 
  */
 
-func (this*UUID) String() string {
-	dst := make([]byte, 36)
-	uuid := this.MarshalBinary()
-	hex.Encode(dst, uuid[:4])
-	dst[8] = '-'
-	hex.Encode(dst[9:13], uuid[4:6])
-	dst[13] = '-'
-	hex.Encode(dst[14:18], uuid[6:8])
-	dst[18] = '-'
-	hex.Encode(dst[19:23], uuid[8:10])
-	dst[23] = '-'
-	hex.Encode(dst[24:], uuid[10:])
+func (this UUID) String() string {
+	dst, _  := this.MarshalText()
 	return string(dst)
 }
 
-func (this*UUID) URN() string {
+func (this UUID) URN() string {
 	return "urn:uuid:" + this.String()
 }
 

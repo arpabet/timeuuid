@@ -51,10 +51,10 @@ func TestSuit(t *testing.T) {
 	assert.Equal(t, uint64(0x40f06fd77405247), uuid.mostSigBits)
 	assert.Equal(t, uint64(0x8d450774f5ba30c5), uuid.leastSigBits)
 
-	uuid.SetTimestampMillis(0)
+	uuid.SetUnixTimeMillis(0)
 	assert.Equal(t, IETF, uuid.Variant())
 	assert.Equal(t, TimebasedUUID, uuid.Version())
-	assert.Equal(t, int64(0), uuid.TimestampMillis())
+	assert.Equal(t, int64(0), uuid.UnixTimeMillis())
 
 	assert.Equal(t, uint64(0x138140001dd211b2), uuid.mostSigBits)
 	assert.Equal(t, uint64(0x8d450774f5ba30c5), uuid.leastSigBits)
@@ -121,16 +121,16 @@ func testTimebased(t *testing.T) {
 	assert.Equal(t, TimebasedUUID, uuid.Version())
 
    // test Milliseconds
-   uuid.SetTimestampMillis(1)
-   assert.Equal(t, int64(1), uuid.TimestampMillis())
+   uuid.SetUnixTimeMillis(1)
+   assert.Equal(t, int64(1), uuid.UnixTimeMillis())
 
 	// test Negative Milliseconds
-	uuid.SetTimestampMillis(-1)
-	assert.Equal(t, int64(-1), uuid.TimestampMillis())
+	uuid.SetUnixTimeMillis(-1)
+	assert.Equal(t, int64(-1), uuid.UnixTimeMillis())
 
 	// clear
-	uuid.SetTimestampMillis(0)
-	assert.Equal(t, int64(0), uuid.TimestampMillis())
+	uuid.SetUnixTimeMillis(0)
+	assert.Equal(t, int64(0), uuid.UnixTimeMillis())
 
 	// test Counter
 
@@ -146,15 +146,18 @@ func testTimebased(t *testing.T) {
 	fmt.Printf("counter=%x\n", uuid.Counter())
 	binMax := uuid.MarshalSortableBinary()
 
-	var comp UUID
 
 	for i := 1; i != 100; i = i + 1 {
 
 		anyNumber := int64(i)
 		uuid.SetCounter(anyNumber)
 
-		assert.Nil(t, comp.Parse(uuid.String()))
-		assert.True(t, uuid.Equals(comp))
+		comp, err := Parse(uuid.String())
+		if err != nil {
+			t.Fatal("parse failed ", uuid.String(), err)
+		}
+
+		assert.True(t, uuid.Equal(comp))
 
 		binLesser := uuid.MarshalSortableBinary()
 		uuid.SetCounter(anyNumber+1)
@@ -220,7 +223,13 @@ func testNamebased(t *testing.T) {
 func assertMarshal(t *testing.T, uuid UUID) {
 
 	var actual UUID
-	err := actual.UnmarshalBinary(uuid.MarshalBinary())
+	data, err := uuid.MarshalBinary()
+
+	if err != nil {
+		t.Fatal("fail to MarshalBinary ", err)
+	}
+
+	err = actual.UnmarshalBinary(data)
 
 	if err != nil {
 		t.Fatal("fail to UnmarshalBinary ", err)
