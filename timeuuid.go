@@ -80,6 +80,7 @@ const (
 
 var (
 	ErrorWrongLen = errors.New("wrong len")
+	ErrorRequiredTimebasedUUID = errors.New("required timebased UUID")
 )
 
 type Version int
@@ -144,46 +145,6 @@ func (this*UUID) SetLeastSignificantBits(leastSigBits int64) {
 }
 
 /**
-     Convert serialized 16 bytes to UUID
-
-     UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
- */
-
-func (this*UUID) UnmarshalBinary(data []byte) error {
-
-	if len(data) < 16 {
-		return ErrorWrongLen
-	}
-
-	this.mostSigBits = binary.BigEndian.Uint64(data)
-	this.leastSigBits = binary.BigEndian.Uint64(data[8:])
-
-	return nil
-}
-
-/**
-     Convert sortable representation of serialized 16 bytes to UUID
-
-     Sortable representation flips timestamp blocks to make TimeUUID sortable as byte array and converts signed bytes to unsigned
- */
-
-func (this*UUID) UnmarshalSortableBinary(data []byte) error {
-
-	if len(data) < 16 {
-		return ErrorWrongLen
-	}
-
-	timeHighAndVersion := uint64(binary.BigEndian.Uint16(data))
-	timeMid := uint64(binary.BigEndian.Uint16(data[2:]))
-	timeLow := uint64(binary.BigEndian.Uint32(data[4:]))
-
-	this.mostSigBits = (timeLow << 32) | (timeMid << 16) | timeHighAndVersion
-	this.leastSigBits = binary.BigEndian.Uint64(data[8:]) ^ FlipSignedBits
-
-	return nil
-}
-
-/**
      Stores UUID in to 16 bytes
 
      MarshalBinary implements the encoding.BinaryMarshaler interface.
@@ -214,17 +175,45 @@ func (this UUID) MarshalBinaryTo(dst []byte) error {
 }
 
 /**
-     Stores UUID in to 16 bytes by flipping timestamp parts to make byte array sortable
+     Convert serialized 16 bytes to UUID
+
+     UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
  */
 
-func (this UUID) MarshalSortableBinary() []byte {
-	dst := make([]byte, 16)
-	this.MarshalSortableBinaryTo(dst)
-	return dst
+func (this*UUID) UnmarshalBinary(data []byte) error {
+
+	if len(data) < 16 {
+		return ErrorWrongLen
+	}
+
+	this.mostSigBits = binary.BigEndian.Uint64(data)
+	this.leastSigBits = binary.BigEndian.Uint64(data[8:])
+
+	return nil
 }
 
 /**
-     Stores UUID in to slice by flipping timestamp parts to make byte array sortable and converts signed bytes to unsigned
+     Stores UUID in to 16 bytes by flipping timestamp parts to make byte array sortable
+
+     Used only for Time-based UUID
+ */
+
+func (this UUID) MarshalSortableBinary() ([]byte, error) {
+	dst := make([]byte, 16)
+	err := this.MarshalSortableBinaryTo(dst)
+	return dst, err
+}
+
+/**
+     Stores UUID in to the slice by flipping timestamp parts to make byte array sortable and converts signed bytes to unsigned
+
+     Used only for Time-based UUID
+
+     Result:
+
+     msb: 4-bit version + 60-bit timestamp in 100 nanos
+     lsb: 2-bit variant + 62-bit counter (clockSequence and Node) converted to unsigned bytes
+
  */
 
 func (this UUID) MarshalSortableBinaryTo(dst []byte) error {
@@ -233,14 +222,54 @@ func (this UUID) MarshalSortableBinaryTo(dst []byte) error {
 		return ErrorWrongLen
 	}
 
-	timeHighAndVersion := uint16(this.mostSigBits)
+	versionAndTimeHigh := uint16(this.mostSigBits)
+
+	if versionAndTimeHigh & 0xF000 != 0x1000 {
+		return ErrorRequiredTimebasedUUID
+	}
+
 	timeMid := uint16(this.mostSigBits >> 16)
 	timeLow := uint32(this.mostSigBits >> 32)
 
-	binary.BigEndian.PutUint16(dst, timeHighAndVersion)
+	binary.BigEndian.PutUint16(dst, versionAndTimeHigh)
 	binary.BigEndian.PutUint16(dst[2:], timeMid)
 	binary.BigEndian.PutUint32(dst[4:], timeLow)
 	binary.BigEndian.PutUint64(dst[8:], this.leastSigBits ^FlipSignedBits)
+
+	return nil
+}
+
+/**
+     Convert sortable representation of serialized 16 bytes to UUID
+
+     Sortable representation flips timestamp blocks to make TimeUUID sortable as byte array and converts signed bytes to unsigned
+
+     Used only for Time-based UUID
+
+     Data:
+
+     msb: 4-bit version + 60-bit timestamp in 100 nanos
+     lsb: 2-bit variant + 62-bit counter (clockSequence and Node) converted to unsigned bytes
+
+ */
+
+func (this*UUID) UnmarshalSortableBinary(data []byte) error {
+
+	if len(data) < 16 {
+		return ErrorWrongLen
+	}
+
+	versionAndTimeHigh := uint64(binary.BigEndian.Uint16(data))
+
+	if versionAndTimeHigh & 0xF000 != 0x1000 {
+		return ErrorRequiredTimebasedUUID
+	}
+
+	timeMid := uint64(binary.BigEndian.Uint16(data[2:]))
+	timeLow := uint64(binary.BigEndian.Uint32(data[4:]))
+
+	this.mostSigBits = (timeLow << 32) | (timeMid << 16) | versionAndTimeHigh
+	this.leastSigBits = binary.BigEndian.Uint64(data[8:]) ^ FlipSignedBits
 
 	return nil
 }
@@ -419,9 +448,7 @@ func (this*UUID) SetTime100NanosUnsigned(time100Nanos uint64) {
  */
 
 func (this UUID) UnixTimeMillis() int64 {
-
 	return (this.Time100Nanos() - Num100NanosSinceUUIDEpoch) / One100NanosInMillis
-
 }
 
 /**
@@ -431,9 +458,7 @@ func (this UUID) UnixTimeMillis() int64 {
  */
 
 func (this*UUID) SetUnixTimeMillis(unixTimeMillis int64) {
-
 	time100Nanos := (unixTimeMillis * One100NanosInMillis) + Num100NanosSinceUUIDEpoch
-
 	this.SetTime100Nanos(time100Nanos)
 }
 
@@ -444,9 +469,7 @@ func (this*UUID) SetUnixTimeMillis(unixTimeMillis int64) {
  */
 
 func (this UUID) UnixTime100Nanos() int64 {
-
 	return this.Time100Nanos() - Num100NanosSinceUUIDEpoch
-
 }
 
 /**
@@ -456,7 +479,6 @@ func (this UUID) UnixTime100Nanos() int64 {
  */
 
 func (this*UUID) SetUnixTime100Nanos(unixTime100Nanos int64) {
-
 	this.SetTime100Nanos(unixTime100Nanos + Num100NanosSinceUUIDEpoch)
 }
 
@@ -491,9 +513,7 @@ func (this*UUID) SetTime(t time.Time) {
  */
 
 func (this UUID) ClockSequence() int {
-
 	variantAndSequence := this.leastSigBits >> 48;
-
 	return int(variantAndSequence) & MaxClockSequence;
 }
 
@@ -506,9 +526,7 @@ func (this UUID) ClockSequence() int {
  */
 
 func (this* UUID) SetClockSequence(clockSequence int) {
-
 	sanitizedSequence := uint64(clockSequence & MaxClockSequence)
-
 	this.leastSigBits = (this.leastSigBits & ClockSequenceClearMask) | (sanitizedSequence << 48)
 }
 

@@ -166,12 +166,12 @@ func testTimebasedUUID(t *testing.T) {
 	uuid.SetMinCounter()
 	fmt.Print("min=", uuid.String(), "\n")
 	fmt.Printf("counter=%x\n", uuid.Counter())
-    binMin := uuid.MarshalSortableBinary()
+    binMin, _ := uuid.MarshalSortableBinary()
 
 	uuid.SetMaxCounter()
 	fmt.Print("max=", uuid.String(), "\n")
 	fmt.Printf("counter=%x\n", uuid.Counter())
-	binMax := uuid.MarshalSortableBinary()
+	binMax, _ := uuid.MarshalSortableBinary()
 
 
 	for i := 1; i != 100; i = i + 1 {
@@ -179,10 +179,10 @@ func testTimebasedUUID(t *testing.T) {
 		anyNumber := int64(i)
 		uuid.SetCounter(anyNumber)
 
-		binLesser := uuid.MarshalSortableBinary()
+		binLesser, _ := uuid.MarshalSortableBinary()
 		uuid.SetCounter(anyNumber+1)
 
-		binGreater := uuid.MarshalSortableBinary()
+		binGreater, _ := uuid.MarshalSortableBinary()
 
 		assert.True(t, bytes.Compare(binMin, binLesser) < 0, "min failed")
 		assert.True(t, bytes.Compare(binLesser, binGreater) < 0, "seq failed")
@@ -224,7 +224,6 @@ func testRandomlyGeneratedUUID(t *testing.T) {
 	assertMarshalText(t, uuid)
 	assertMarshalJson(t, uuid)
 	assertMarshalBinary(t, uuid)
-	assertMarshalSortableBinary(t, uuid)
 
 }
 
@@ -254,7 +253,6 @@ func testNamebasedUUID(t *testing.T) {
 	assertMarshalText(t, uuid)
 	assertMarshalJson(t, uuid)
 	assertMarshalBinary(t, uuid)
-	assertMarshalSortableBinary(t, uuid)
 
 }
 
@@ -323,7 +321,13 @@ func assertMarshalBinary(t *testing.T, uuid UUID) {
 func assertMarshalSortableBinary(t *testing.T, uuid UUID) {
 
 	var actual UUID
-	err := actual.UnmarshalSortableBinary(uuid.MarshalSortableBinary())
+	data, err := uuid.MarshalSortableBinary()
+
+	if err != nil {
+		t.Fatal("fail to MarshalSortableBinary ", err)
+	}
+
+	err = actual.UnmarshalSortableBinary(data)
 
 	if err != nil {
 		t.Fatal("fail to UnmarshalSortableBinary ", err)
