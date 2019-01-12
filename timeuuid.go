@@ -100,8 +100,30 @@ const (
 	UnknownVersion
 )
 
+/**
+	Compare two required values of UUID
+ */
+
 func (this UUID) Equal(other UUID) bool {
 	return this.mostSigBits == other.mostSigBits && this.leastSigBits == other.leastSigBits
+}
+
+/**
+	Compare two optional values of UUID
+
+    return true if both are nil or equal
+ */
+
+func Equal(left *UUID, right *UUID) bool {
+	if left != nil {
+		if right != nil {
+			return left.Equal(*right)
+		} else {
+			return false
+		}
+	} else {
+		return right == nil
+	}
 }
 
 /**

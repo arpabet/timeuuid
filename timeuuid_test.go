@@ -32,11 +32,20 @@ func TestSuit(t *testing.T) {
 
 	println("Empty=", Empty.String())
 
-	testTimebasedUUID(t)
-
 	uuid := NewUUID(DCESecurityVer2)
 	assert.Equal(t, IETF, uuid.Variant())
 	assert.Equal(t, DCESecurityVer2, uuid.Version())
+
+	// check Equal
+
+	assert.False(t, Equal(&uuid, nil))
+	assert.False(t, Equal(nil, &uuid))
+	assert.True(t, Equal(nil, nil))
+	assert.True(t, Equal(&uuid, &uuid))
+
+	// check Versions
+
+	testTimebasedUUID(t)
 
 	testRandomlyGeneratedUUID(t)
 	testNamebasedUUID(t)
