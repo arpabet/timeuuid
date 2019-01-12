@@ -34,9 +34,9 @@ func TestSuit(t *testing.T) {
 
 	testTimebasedUUID(t)
 
-	uuid := NewUUID(DCESecurityUUID)
+	uuid := NewUUID(DCESecurityVer2)
 	assert.Equal(t, IETF, uuid.Variant())
-	assert.Equal(t, DCESecurityUUID, uuid.Version())
+	assert.Equal(t, DCESecurityVer2, uuid.Version())
 
 	testRandomlyGeneratedUUID(t)
 	testNamebasedUUID(t)
@@ -49,7 +49,7 @@ func TestSuit(t *testing.T) {
 
 func testParser(t *testing.T) {
 
-	uuid := NewUUID(TimebasedUUID)
+	uuid := NewUUID(TimebasedVer1)
 	uuid.SetTime(time.Now())
 	uuid.SetCounter(rand.Int63())
 
@@ -64,19 +64,19 @@ func testParser(t *testing.T) {
 
 func testTimebasedNamedUUID(t *testing.T) {
 
-	uuid, err := NameUUIDFromBytes([]byte("content"), SHA1NamebasedUUID)
+	uuid, err := NameUUIDFromBytes([]byte("content"), NamebasedVer5)
 	if err != nil {
 		t.Fatal("fail to create name uuid ", err)
 	}
 
 	assert.Equal(t, IETF, uuid.Variant())
-	assert.Equal(t, SHA1NamebasedUUID, uuid.Version())
+	assert.Equal(t, NamebasedVer5, uuid.Version())
 	assert.Equal(t, uint64(0x40f06fd77405247), uuid.mostSigBits)
 	assert.Equal(t, uint64(0x8d450774f5ba30c5), uuid.leastSigBits)
 
 	uuid.SetUnixTimeMillis(0)
 	assert.Equal(t, IETF, uuid.Variant())
-	assert.Equal(t, TimebasedUUID, uuid.Version())
+	assert.Equal(t, TimebasedVer1, uuid.Version())
 	assert.Equal(t, int64(0), uuid.UnixTimeMillis())
 	assert.Equal(t, uint64(0x138140001dd211b2), uuid.mostSigBits)
 	assert.Equal(t, uint64(0x8d450774f5ba30c5), uuid.leastSigBits)
@@ -90,9 +90,9 @@ func testTimebasedNamedUUID(t *testing.T) {
 
 func testTimebasedUUID(t *testing.T) {
 
-	uuid := NewUUID(TimebasedUUID)
+	uuid := NewUUID(TimebasedVer1)
 	assert.Equal(t, IETF, uuid.Variant())
-	assert.Equal(t, TimebasedUUID, uuid.Version())
+	assert.Equal(t, TimebasedVer1, uuid.Version())
 
 	assert.Equal(t, int64(0), uuid.Time100Nanos())
 	assert.Equal(t, 0, uuid.ClockSequence())
@@ -140,12 +140,12 @@ func testTimebasedUUID(t *testing.T) {
 	// test MaxTime
 	uuid.SetTime100Nanos(int64(0x0FFFFFFFFFFFFFFF))
 	assert.Equal(t, int64(0x0FFFFFFFFFFFFFFF), uuid.Time100Nanos())
-	assert.Equal(t, TimebasedUUID, uuid.Version())
+	assert.Equal(t, TimebasedVer1, uuid.Version())
 
 	// test clear MaxTime
 	uuid.SetTime100Nanos(0)
 	assert.Equal(t, int64(0), uuid.Time100Nanos())
-	assert.Equal(t, TimebasedUUID, uuid.Version())
+	assert.Equal(t, TimebasedVer1, uuid.Version())
 
    // test Milliseconds
    uuid.SetUnixTimeMillis(1)
@@ -161,7 +161,7 @@ func testTimebasedUUID(t *testing.T) {
 
 	// test Counter
 
-	uuid = NewUUID(TimebasedUUID)
+	uuid = NewUUID(TimebasedVer1)
 
 	uuid.SetMinCounter()
 	fmt.Print("min=", uuid.String(), "\n")
@@ -189,7 +189,7 @@ func testTimebasedUUID(t *testing.T) {
 		assert.True(t, bytes.Compare(binGreater, binMax) < 0, "max failed")
 	}
 
-	uuid = NewUUID(TimebasedUUID)
+	uuid = NewUUID(TimebasedVer1)
 
 	current := time.Now()
 
@@ -208,9 +208,9 @@ func testTimebasedUUID(t *testing.T) {
 
 func testRandomlyGeneratedUUID(t *testing.T) {
 
-	uuid := NewUUID(RandomlyGeneratedUUID)
+	uuid := NewUUID(RandomlyGeneratedVer4)
 	assert.Equal(t, IETF, uuid.Variant())
-	assert.Equal(t, RandomlyGeneratedUUID, uuid.Version())
+	assert.Equal(t, RandomlyGeneratedVer4, uuid.Version())
 
 	uuid, err := RandomUUID()
 
@@ -219,7 +219,7 @@ func testRandomlyGeneratedUUID(t *testing.T) {
 	}
 
 	assert.Equal(t, IETF, uuid.Variant())
-	assert.Equal(t, RandomlyGeneratedUUID, uuid.Version())
+	assert.Equal(t, RandomlyGeneratedVer4, uuid.Version())
 
 	assertMarshalText(t, uuid)
 	assertMarshalJson(t, uuid)
@@ -229,22 +229,22 @@ func testRandomlyGeneratedUUID(t *testing.T) {
 
 func testNamebasedUUID(t *testing.T) {
 
-	uuid := NewUUID(SHA1NamebasedUUID)
+	uuid := NewUUID(NamebasedVer5)
 	assert.Equal(t, IETF, uuid.Variant())
-	assert.Equal(t, SHA1NamebasedUUID, uuid.Version())
+	assert.Equal(t, NamebasedVer5, uuid.Version())
 
-	uuid = NewUUID(MD5NamebasedUUID)
+	uuid = NewUUID(NamebasedVer3)
 	assert.Equal(t, IETF, uuid.Variant())
-	assert.Equal(t, MD5NamebasedUUID, uuid.Version())
+	assert.Equal(t, NamebasedVer3, uuid.Version())
 
-	uuid, err := NameUUIDFromBytes([]byte("alex"), MD5NamebasedUUID)
+	uuid, err := NameUUIDFromBytes([]byte("alex"), NamebasedVer3)
 
 	if err != nil {
 		t.Fatal("fail to create random uuid ", err)
 	}
 
 	assert.Equal(t, IETF, uuid.Variant())
-	assert.Equal(t, MD5NamebasedUUID, uuid.Version())
+	assert.Equal(t, NamebasedVer3, uuid.Version())
 	assert.Equal(t, uint64(0x534b44a19bf13d20), uuid.mostSigBits)
 	assert.Equal(t, uint64(0xb71ecc4eb77c572f), uuid.leastSigBits)
 

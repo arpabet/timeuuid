@@ -31,10 +31,8 @@ import (
 )
 
 type UUID struct {
-
 	mostSigBits   uint64
 	leastSigBits  uint64
-
 }
 
 var ZeroUUID = UUID{0, 0}
@@ -59,7 +57,7 @@ const (
 	Num100NanosSinceUUIDEpoch = int64(0x01b21dd213814000)
 
 	VersionMask = uint64(0x000000000000F000)
-	TimebasedVersion = uint64(0x0000000000001000)
+	TimebasedVersionBits = uint64(0x0000000000001000)
 
 	MinNode = int64(0)
 	MaxNode = int64(0x0000FFFFFFFFFFFF)
@@ -88,11 +86,11 @@ type Version int
 // Constants returned by Version.
 const (
 	BadVersion   = Version(iota)
-	TimebasedUUID
-	DCESecurityUUID
-	MD5NamebasedUUID
-	RandomlyGeneratedUUID
-	SHA1NamebasedUUID
+	TimebasedVer1
+	DCESecurityVer2
+	NamebasedVer3
+	RandomlyGeneratedVer4
+	NamebasedVer5
 	UnknownVersion
 )
 
@@ -105,10 +103,18 @@ func (this UUID) Equal(other UUID) bool {
  */
 
 func NewUUID(version Version) (uuid UUID) {
-
 	uuid.mostSigBits = uint64(version) << 12
 	uuid.leastSigBits = IETFVariant
+	return uuid
+}
 
+/**
+	Creates UUID from the specific most and least sig bits
+ */
+
+func CreateUUID(mostSigBits, leastSigBits int64) (uuid UUID) {
+	uuid.mostSigBits = uint64(mostSigBits)
+	uuid.leastSigBits = uint64(leastSigBits)
 	return uuid
 }
 
@@ -151,7 +157,6 @@ func (this*UUID) SetLeastSignificantBits(leastSigBits int64) {
  */
 
 func (this UUID) MarshalBinary() (dst []byte, err error) {
-
 	dst = make([]byte, 16)
 	err = this.MarshalBinaryTo(dst)
 	return dst, err
@@ -312,7 +317,7 @@ func (this*UUID) SetName(name []byte, version Version) error {
 
 	switch(version) {
 
-	case MD5NamebasedUUID:
+	case NamebasedVer3:
 
 		digest := md5.Sum(name)
 
@@ -323,7 +328,7 @@ func (this*UUID) SetName(name []byte, version Version) error {
 
 		return this.UnmarshalBinary(digest[:])
 
-	case SHA1NamebasedUUID:
+	case NamebasedVer5:
 
 		digest := sha1.Sum(name)
 
@@ -335,7 +340,7 @@ func (this*UUID) SetName(name []byte, version Version) error {
 		return this.UnmarshalBinary(digest[:])
 
 	default:
-		return errors.Errorf("unknown version: %q", version)
+		return errors.Errorf("unknown namebased version: %q", version)
 	}
 
 }
@@ -426,7 +431,7 @@ func (this*UUID) SetTime100Nanos(time100Nanos int64) {
 
 func (this*UUID) SetTime100NanosUnsigned(time100Nanos uint64) {
 
-	bits := TimebasedVersion
+	bits := TimebasedVersionBits
 
 	// timeLow
 	bits |= (time100Nanos & 0xFFFFFFFF) << 32
@@ -790,7 +795,19 @@ func (this UUID) URN() string {
 }
 
 func (v Version) String() string {
-	return fmt.Sprintf("UUID_V%d", v)
+	switch v {
+	case TimebasedVer1:
+		return "TimebasedVer1"
+	case DCESecurityVer2:
+		return "DCESecurityVer2"
+	case NamebasedVer3:
+		return "NamebasedVer3"
+	case RandomlyGeneratedVer4:
+		return "RandomlyGeneratedVer4"
+	case NamebasedVer5:
+		return "NamebasedVer5"
+	}
+	return fmt.Sprintf("BadVersion%d", int(v))
 }
 
 func (v Variant) String() string {
