@@ -30,7 +30,7 @@ import (
 
 func TestSuit(t *testing.T) {
 
-	println("ZeroUUID=", ZeroUUID.String())
+	println("Empty=", Empty.String())
 
 	testTimebasedUUID(t)
 
@@ -98,7 +98,7 @@ func testTimebasedUUID(t *testing.T) {
 	assert.Equal(t, 0, uuid.ClockSequence())
 	assert.Equal(t, int64(0), uuid.Node())
 
-	// test MaxNode
+	// test nodeMask
 	uuid.SetNode(int64(0x0000FFFFFFFFFFFF))
 	assert.Equal(t, int64(0x0000FFFFFFFFFFFF), uuid.Node())
 	assert.Equal(t, IETF, uuid.Variant())
@@ -137,12 +137,12 @@ func testTimebasedUUID(t *testing.T) {
 	assert.Equal(t, IETF, uuid.Variant())
 	uuid.SetNode(int64(0))
 
-	// test MaxTime
+	// test maxTimeBits
 	uuid.SetTime100Nanos(int64(0x0FFFFFFFFFFFFFFF))
 	assert.Equal(t, int64(0x0FFFFFFFFFFFFFFF), uuid.Time100Nanos())
 	assert.Equal(t, TimebasedVer1, uuid.Version())
 
-	// test clear MaxTime
+	// test clear maxTimeBits
 	uuid.SetTime100Nanos(0)
 	assert.Equal(t, int64(0), uuid.Time100Nanos())
 	assert.Equal(t, TimebasedVer1, uuid.Version())
