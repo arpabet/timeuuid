@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2018-present Shvid Inc.
+ * Copyright 2020-present Arpabet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -732,7 +732,6 @@ func ParseBytes(src []byte) (UUID, error) {
 			return uuid, err
 
 		default:
-			fmt.Printf("finish %s", src)
 			return Empty, fmt.Errorf("invalid UUID length: %q", src)
 		}
 
