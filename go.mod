@@ -1,4 +1,4 @@
-module githab.com/consensusdb/timeuuid
+module github.com/consensusdb/timeuuid
 
 go 1.13
 
