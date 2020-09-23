@@ -4,12 +4,12 @@ Golang UUID implementation that supports TimeUUID version
 
 ### Checkout
 ```
-go get "github.com/consensusdb/timeuuid"
+go get "github.com/arpabet/timeuuid"
 ```
 
 ### Import
 ```
-import "github.com/consensusdb/timeuuid"
+import "github.com/arpabet/timeuuid"
 ```
 
 ### Quick start example:
