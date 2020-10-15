@@ -1,4 +1,4 @@
-module github.com/arpabet/timeuuid
+module arpabet.pkg.is/timeuuid
 
 go 1.13
 
