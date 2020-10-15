@@ -4,7 +4,7 @@ Golang UUID implementation that supports TimeUUID version
 
 ### Checkout
 ```
-go get "github.com/arpabet/timeuuid"
+go get arpabet.pkg.is/timeuuid
 ```
 
 ### Import
